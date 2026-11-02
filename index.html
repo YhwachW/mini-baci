@@ -4,7 +4,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Simulador de programas C-- concurrentes (cobegin, semaphore, binarysem, wait, signal) para el celular.">
+<meta name="description" content="Intérprete de C-- concurrente (BACI / jBACI) para el celular.">
 <meta name="theme-color" content="#151D25">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
@@ -17,7 +17,7 @@
 :root {
   --bg: #E8EDF1; --surface: #FFFFFF; --sunk: #F2F5F8; --ink: #13202B; --muted: #576675; --line: #D2DBE2;
   --amber: #E39B1B; --amber-ink: #2A1A00; --go: #1C8A4E; --stop: #C7313B; --focus: #1F6FD1; --code-bg: #F7F9FB;
-  --bar: #151D25; --bar-ink: #E3E9EF; --bar-muted: #93A1AE;
+  --bar: #151D25; --bar-ink: #E3E9EF; --bar-muted: #93A1AE; --input: #1F6FD1;
   --p1: #2563C9; --p2: #B4410F; --p3: #0F7F6B; --p4: #8A3FB8; --p5: #A3317A; --p6: #5F7A0E; --p7: #0E6E95; --p8: #9A6A00;
   --f-display: "Archivo", "Segoe UI", system-ui, sans-serif;
   --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -26,17 +26,18 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0D1318; --surface: #151D25; --sunk: #10171E; --ink: #E3E9EF; --muted: #8D9BA8; --line: #26323D;
   --amber: #F2AE3F; --amber-ink: #231500; --go: #43C17E; --stop: #F0626B; --focus: #6AA8FF; --code-bg: #111920;
-  --bar: #0A0F13; --bar-ink: #E3E9EF; --bar-muted: #8D9BA8;
+  --bar: #0A0F13; --bar-ink: #E3E9EF; --bar-muted: #8D9BA8; --input: #6AA8FF;
   --p1: #6EA2FF; --p2: #FF8A57; --p3: #3FD0B1; --p4: #C58BFF; --p5: #FF7FC4; --p6: #B5D94A; --p7: #4FC3EE; --p8: #F5C24E;
   color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #0D1318; --surface: #151D25; --sunk: #10171E; --ink: #E3E9EF; --muted: #8D9BA8; --line: #26323D;
   --amber: #F2AE3F; --amber-ink: #231500; --go: #43C17E; --stop: #F0626B; --focus: #6AA8FF; --code-bg: #111920;
-  --bar: #0A0F13; --bar-ink: #E3E9EF; --bar-muted: #8D9BA8;
+  --bar: #0A0F13; --bar-ink: #E3E9EF; --bar-muted: #8D9BA8; --input: #6AA8FF;
   --p1: #6EA2FF; --p2: #FF8A57; --p3: #3FD0B1; --p4: #C58BFF; --p5: #FF7FC4; --p6: #B5D94A; --p7: #4FC3EE; --p8: #F5C24E;
   color-scheme: dark; }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { min-height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); -webkit-text-size-adjust: 100%; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bar); }
@@ -60,7 +61,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 
 /* ---------- paneles ---------- */
 .panes { max-width: 1400px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 40px; display: grid; gap: 20px; }
-.pane { min-width: 0; display: grid; gap: 14px; align-content: start; }
+.pane { min-width: 0; display: grid; gap: 12px; align-content: start; }
 @media (max-width: 959px) { .pane:not(.active) { display: none; } }
 @media (min-width: 960px) { .panes { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); } .tabs { display: none; } .pane-edit { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 64px); } }
 
@@ -70,24 +71,30 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--amber); color: var(--amber-ink); border-color: transparent; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { color: var(--stop); }
+.btn.danger.armed { background: var(--stop); color: #fff; border-color: transparent; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.big { padding: 12px 18px; font-size: 16px; justify-content: center; }
-select.sel { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 8px 10px; font-size: 14px; max-width: 100%; min-width: 0; }
+select.sel, input.txt { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 8px 10px; font-size: 14px; max-width: 100%; min-width: 0; }
 
 /* ---------- editor ---------- */
-.ex-pick { display: grid; gap: 6px; }
-.ex-pick select { width: 100%; }
+.filebar { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.filebar .fld { display: grid; gap: 5px; min-width: 0; }
+.filebar select, .filebar input { width: 100%; font-family: var(--f-mono); }
+@media (max-width: 420px) { .filebar { grid-template-columns: minmax(0, 1fr); } }
 .editor { display: flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--code-bg); }
 .gutter, #code { font: 14px/1.55 var(--f-mono); padding-block: 12px; }
 .gutter { padding-inline: 10px 8px; text-align: right; color: var(--muted); user-select: none; white-space: pre; overflow: hidden; border-right: 1px solid var(--line); min-width: 3.2em; background: var(--sunk); font-variant-numeric: tabular-nums; }
 .gutter .bad { color: var(--stop); font-weight: 600; }
-#code { flex: 1; min-width: 0; border: 0; outline: none; resize: none; padding-inline: 12px; background: transparent; white-space: pre; overflow: auto; height: min(62vh, 640px); tab-size: 4; }
+#code { flex: 1; min-width: 0; border: 0; outline: none; resize: none; padding-inline: 12px; background: transparent; white-space: pre; overflow: auto; height: min(60vh, 640px); tab-size: 4; }
 @media (pointer: coarse) { .gutter, #code { font-size: 16px; } }
 .errbox { border: 1px solid var(--stop); border-left-width: 4px; background: var(--surface); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
 .errbox b { color: var(--stop); }
 .errbox .msg { font-family: var(--f-mono); font-size: 13px; overflow-wrap: anywhere; }
-.note { color: var(--muted); font-size: 13px; max-width: 65ch; margin: 0; }
-.note code { font-family: var(--f-mono); font-size: 12px; }
+details.help { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+details.help summary { cursor: pointer; font-weight: 600; }
+details.help ul { margin: 8px 0 4px; padding-left: 18px; display: grid; gap: 3px; color: var(--muted); }
+details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--ink); }
 
 /* ---------- ejecución ---------- */
 .controls { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 58px); z-index: 3; background: var(--bg); padding-block: 4px 8px; display: grid; gap: 8px; }
@@ -95,10 +102,11 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-weight: 600; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); }
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.chip.run::before { background: var(--amber); } .chip.done::before { background: var(--go); } .chip.bad::before { background: var(--stop); }
+.chip.run::before { background: var(--amber); } .chip.done::before { background: var(--go); } .chip.bad::before { background: var(--stop); } .chip.wait::before { background: var(--input); }
 .steps { color: var(--muted); font-family: var(--f-mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .msgline { font-size: 13.5px; overflow-wrap: anywhere; }
 .msgline.bad { color: var(--stop); font-weight: 500; }
+.msgline.wait { color: var(--input); font-weight: 500; }
 
 .grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 640px) { .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .span2 { grid-column: 1 / -1; } }
@@ -107,7 +115,7 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .empty { color: var(--muted); font-size: 13px; }
 
 .sems { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-.sem { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 6px; background: var(--sunk); min-width: 0; }
+.sem, .mon { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 6px; background: var(--sunk); min-width: 0; }
 .sem-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lamp { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.12); }
 .lamp.on { background: var(--go); } .lamp.off { background: var(--stop); }
@@ -119,12 +127,19 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .pips i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--go); }
 .pips i.f { background: var(--go); }
 .mons { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-.mon { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; background: var(--sunk); min-width: 0; }
+.mon { gap: 8px; }
 .mrow { display: grid; gap: 3px; }
 .mk { font-size: 11.5px; color: var(--muted); }
 .mk b { font-family: var(--f-mono); color: var(--ink); font-weight: 600; }
 .prio { font: 500 10.5px var(--f-mono); color: var(--muted); margin-left: -2px; }
 .queue { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+
+.notes { display: flex; gap: 6px; flex-wrap: wrap; }
+.note { font: 600 13px/1.2 var(--f-mono); padding: 6px 9px; border-radius: 8px; background: var(--sunk); border: 1px solid var(--line); }
+.note i { font-style: normal; color: var(--amber); }
+
+.canvas-wrap { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #FFFFFF; }
+#gfx { display: block; width: 100%; height: auto; aspect-ratio: 600 / 450; max-width: 100%; }
 
 .pc { display: inline-flex; align-items: center; gap: 5px; font: 500 12px/1.2 var(--f-mono); padding: 2px 7px 2px 5px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
 .pc::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--pcol, var(--muted)); }
@@ -134,11 +149,13 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .proc:last-child { border-bottom: 0; }
 .swatch { width: 10px; height: 26px; border-radius: 3px; background: var(--pcol, var(--muted)); }
 .pname { font: 600 13.5px/1.3 var(--f-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pdet { font-size: 12px; color: var(--muted); grid-column: 2; }
+.pname small { color: var(--muted); font-weight: 400; margin-right: 4px; }
+.pdet { font-size: 12px; color: var(--muted); grid-column: 2; overflow-wrap: anywhere; }
 .pill { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; grid-row: 1 / span 2; grid-column: 3; }
 .pill.ready { background: color-mix(in srgb, var(--go) 16%, transparent); color: var(--go); }
 .pill.cur { background: var(--amber); color: var(--amber-ink); }
 .pill.blocked { background: color-mix(in srgb, var(--stop) 16%, transparent); color: var(--stop); }
+.pill.input { background: color-mix(in srgb, var(--input) 16%, transparent); color: var(--input); }
 .pill.cob { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
 .pill.done { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .proc.isdone .pname { color: var(--muted); }
@@ -149,7 +166,11 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .seg.c5 { color: var(--p5); } .seg.c6 { color: var(--p6); } .seg.c7 { color: var(--p7); } .seg.c8 { color: var(--p8); }
 .seg.err { color: var(--stop); font-weight: 600; }
 .seg.warn { color: var(--amber); }
+.seg.in { color: var(--input); font-weight: 600; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.stdin { display: flex; gap: 8px; }
+.stdin input { flex: 1; min-width: 0; font-family: var(--f-mono); }
+.stdin.waiting input { border-color: var(--input); box-shadow: 0 0 0 2px color-mix(in srgb, var(--input) 30%, transparent); }
 
 .vars { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font: 13px/1.4 var(--f-mono); margin: 0; }
 .vars dt { color: var(--muted); }
@@ -164,15 +185,9 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .cl.errl { background: color-mix(in srgb, var(--stop) 16%, transparent); }
 .cl .t { padding-right: 12px; }
 
-.pc[data-c="1"], .proc[data-c="1"], .cl .m i[data-c="1"] { --pcol: var(--p1); }
-.pc[data-c="2"], .proc[data-c="2"], .cl .m i[data-c="2"] { --pcol: var(--p2); }
-.pc[data-c="3"], .proc[data-c="3"], .cl .m i[data-c="3"] { --pcol: var(--p3); }
-.pc[data-c="4"], .proc[data-c="4"], .cl .m i[data-c="4"] { --pcol: var(--p4); }
-.pc[data-c="5"], .proc[data-c="5"], .cl .m i[data-c="5"] { --pcol: var(--p5); }
-.pc[data-c="6"], .proc[data-c="6"], .cl .m i[data-c="6"] { --pcol: var(--p6); }
-.pc[data-c="7"], .proc[data-c="7"], .cl .m i[data-c="7"] { --pcol: var(--p7); }
-.pc[data-c="8"], .proc[data-c="8"], .cl .m i[data-c="8"] { --pcol: var(--p8); }
-.pc[data-c="0"], .proc[data-c="0"], .cl .m i[data-c="0"] { --pcol: var(--ink); }
+[data-c="1"] { --pcol: var(--p1); } [data-c="2"] { --pcol: var(--p2); } [data-c="3"] { --pcol: var(--p3); } [data-c="4"] { --pcol: var(--p4); }
+[data-c="5"] { --pcol: var(--p5); } [data-c="6"] { --pcol: var(--p6); } [data-c="7"] { --pcol: var(--p7); } [data-c="8"] { --pcol: var(--p8); }
+[data-c="0"] { --pcol: var(--ink); }
 
 @media (prefers-reduced-motion: no-preference) { .lamp, .pill, .pips i { transition: background-color .15s, color .15s; } }
 </style>
@@ -181,7 +196,7 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
   <div class="bar-in">
     <div class="brand">
       <span class="lightbox" aria-hidden="true"><i></i><i></i><i></i></span>
-      <div><h1>Mini BACI</h1><small>C-- concurrente · semáforos</small></div>
+      <div><h1>Mini BACI</h1><small>intérprete C-- · jBACI</small></div>
     </div>
     <button id="installBtn" type="button" hidden>Instalar app</button>
     <nav class="tabs" role="tablist" aria-label="Vista">
@@ -193,15 +208,23 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 
 <main class="panes">
   <section id="paneEdit" class="pane pane-edit active" aria-label="Código">
-    <div class="ex-pick">
-      <label class="label" for="exSel">Ejemplo</label>
-      <select id="exSel" class="sel"></select>
+    <div class="filebar">
+      <div class="fld">
+        <label class="label" for="fileSel">Abrir</label>
+        <select id="fileSel" class="sel"></select>
+      </div>
+      <div class="fld">
+        <label class="label" for="fileName">Nombre del archivo</label>
+        <input id="fileName" class="txt" type="text" spellcheck="false" autocapitalize="off" autocomplete="off">
+      </div>
     </div>
     <div class="row">
+      <button id="newBtn" class="btn" type="button">Nuevo</button>
       <button id="openBtn" class="btn" type="button">Abrir .cm</button>
-      <button id="saveBtn" class="btn" type="button">Guardar .cm</button>
+      <button id="saveBtn" class="btn" type="button">Descargar</button>
       <button id="copyBtn" class="btn" type="button">Copiar</button>
-      <input id="fileIn" type="file" accept=".cm,.txt,text/plain" hidden>
+      <button id="delBtn" class="btn danger" type="button">Quitar</button>
+      <input id="fileIn" type="file" accept=".cm,.txt,text/plain" multiple hidden>
     </div>
     <div id="errBox" class="errbox" hidden>
       <div><b id="errTitle">Error de compilación</b></div>
@@ -213,7 +236,20 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
       <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Programa C--"></textarea>
     </div>
     <button id="runFromEdit" class="btn primary big" type="button">Compilar y ejecutar</button>
-    <p class="note">Entiende <code>int</code>, <code>char</code>, <code>const</code>, arreglos, <code>if</code>, <code>while</code>, <code>for</code>, <code>do</code>, funciones, <code>cout</code>, <code>cobegin</code>, <code>semaphore</code>, <code>binarysem</code>, <code>wait</code>, <code>signal</code>, <code>atomic</code>, <code>random(n)</code> y monitores (<code>monitor</code>, <code>condition</code>, <code>waitc</code>, <code>signalc</code>, <code>empty</code>, <code>init</code>). Igual que jBACI, el orden entre procesos es aleatorio: cada ejecución puede salir distinta. Linda no está incluido.</p>
+    <details class="help">
+      <summary>Qué entiende el intérprete</summary>
+      <ul>
+        <li>Tipos <code>int</code>, <code>char</code>, <code>string[n]</code>, arreglos de varias dimensiones, <code>typedef</code>, <code>const</code>, casts <code>int()</code> y <code>char()</code>.</li>
+        <li><code>if</code>, <code>switch/case</code>, <code>for</code>, <code>while</code>, <code>do</code>, <code>break</code>, <code>continue</code>, funciones por valor y por referencia (<code>&amp;</code>), recursión.</li>
+        <li><code>cout</code>, <code>cin</code>, <code>nbcin</code> y <code>#include "archivo.cm"</code> de los archivos que abriste aquí (más <code>gdefs.cm</code> e <code>iodefs.cm</code>).</li>
+        <li><code>cobegin</code>/<code>parbegin</code>, <code>semaphore</code>, <code>binarysem</code>, <code>initialsem</code>, <code>wait</code>/<code>signal</code> (<code>p</code>/<code>v</code>), <code>atomic</code>, <code>suspend</code>, <code>revive</code>, <code>which_proc</code>, <code>random</code>.</li>
+        <li>Monitores: <code>monitor</code>, <code>condition</code>, <code>waitc</code>, <code>signalc</code>, <code>empty</code>, <code>init</code>.</li>
+        <li>Strings: <code>stringCopy</code>, <code>stringConcat</code>, <code>stringCompare</code>, <code>stringLength</code>, <code>sprintf</code>, <code>sscanf</code>.</li>
+        <li>Linda: <code>postnote</code>, <code>readnote</code>, <code>removenote</code>, <code>readnoteeq</code>, <code>removenoteeq</code> y <code>variable=</code>.</li>
+        <li>Gráficos de jBACI: <code>create</code>, <code>changecolor</code>, <code>makevisible</code>, <code>moveto</code>, <code>moveby</code>.</li>
+        <li>Como en jBACI, el orden entre procesos es aleatorio: cada ejecución puede salir distinta.</li>
+      </ul>
+    </details>
   </section>
 
   <section id="paneRun" class="pane" aria-label="Ejecución">
@@ -239,12 +275,30 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 
     <div class="grid">
       <div class="card span2">
+        <div class="card-h"><span class="label">Consola</span>
+          <label class="toggle"><input id="colorOut" type="checkbox" checked> Color por proceso</label></div>
+        <pre id="console" class="console" aria-live="off"></pre>
+        <form id="stdinForm" class="stdin" hidden>
+          <input id="stdin" class="txt" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dato para cin / nbcin" aria-label="Entrada del programa">
+          <button class="btn" type="submit">Enviar</button>
+        </form>
+      </div>
+      <div id="gfxCard" class="card span2" hidden>
+        <div class="card-h"><span class="label">Dibujo</span><span class="label">600 × 450</span></div>
+        <div class="canvas-wrap"><canvas id="gfx" width="600" height="450"></canvas></div>
+      </div>
+      <div id="semCard" class="card span2" hidden>
         <div class="card-h"><span class="label">Semáforos</span><span id="semCount" class="label"></span></div>
-        <div id="sems" class="sems"><span class="empty">El programa no declara semáforos.</span></div>
+        <div id="sems" class="sems"></div>
       </div>
       <div id="monCard" class="card span2" hidden>
         <div class="card-h"><span class="label">Monitores</span><span id="monCount" class="label"></span></div>
         <div id="mons" class="mons"></div>
+      </div>
+      <div id="lindaCard" class="card span2" hidden>
+        <div class="card-h"><span class="label">Pizarra Linda</span><span id="lindaCount" class="label"></span></div>
+        <div id="notes" class="notes"></div>
+        <div id="lindaWait" class="queue"></div>
       </div>
       <div class="card">
         <div class="card-h"><span class="label">Procesos</span><span id="procCount" class="label"></span></div>
@@ -255,11 +309,6 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
         <dl id="vars" class="vars"></dl>
       </div>
       <div class="card span2">
-        <div class="card-h"><span class="label">Consola</span>
-          <label class="toggle"><input id="colorOut" type="checkbox" checked> Color por proceso</label></div>
-        <pre id="console" class="console" aria-live="off"></pre>
-      </div>
-      <div class="card span2">
         <div class="card-h"><span class="label">Dónde va cada proceso</span></div>
         <div id="codeview" class="codeview"></div>
       </div>
@@ -267,1358 +316,132 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
   </section>
 </main>
 
+<script src="baci.js"></script>
+<script src="ejemplos.js"></script>
 <script>
-// ==INTERP START==
-const KW = new Set(['int','void','char','bool','const','semaphore','binarysem','if','else','while','for','do','return','cobegin','cout','endl','break','continue','atomic','true','false','monitor','condition']);
-class BaciError extends Error { constructor(msg, line) { super(msg); this.line = line; } }
-const bErr = (m, l) => new BaciError(m, l);
-
-function lex(src) {
-  const toks = []; let i = 0, line = 1; const n = src.length;
-  const ops2 = ['<<','<=','>=','==','!=','&&','||','++','--','+=','-=','*=','/=','%='];
-  while (i < n) {
-    const c = src[i];
-    if (c === '\n') { line++; i++; continue; }
-    if (c === ' ' || c === '\t' || c === '\r' || c === '\f' || c === '\v' || c === ' ' || c === '﻿') { i++; continue; }
-    if (c === '/' && src[i+1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
-    if (c === '/' && src[i+1] === '*') {
-      const start = line; i += 2;
-      while (i < n && !(src[i] === '*' && src[i+1] === '/')) { if (src[i] === '\n') line++; i++; }
-      if (i >= n) throw bErr('Hay un comentario /* que nunca se cierra con */', start);
-      i += 2; continue;
-    }
-    if (c === '#') { while (i < n && src[i] !== '\n') i++; continue; }
-    if (c >= '0' && c <= '9') { let j = i; while (j < n && src[j] >= '0' && src[j] <= '9') j++; toks.push({ t: 'num', v: parseInt(src.slice(i, j), 10), line }); i = j; continue; }
-    if (/[A-Za-z_]/.test(c)) { let j = i; while (j < n && /[A-Za-z0-9_]/.test(src[j])) j++; const w = src.slice(i, j); toks.push({ t: KW.has(w) ? w : 'id', v: w, line }); i = j; continue; }
-    if (c === '"') {
-      let j = i + 1, s = '';
-      while (j < n && src[j] !== '"') {
-        if (src[j] === '\n') throw bErr('Un texto entre comillas no se cerró (falta ")', line);
-        if (src[j] === '\\' && j + 1 < n) { const e = src[j+1]; s += e === 'n' ? '\n' : e === 't' ? '\t' : e; j += 2; }
-        else s += src[j++];
-      }
-      if (j >= n) throw bErr('Un texto entre comillas no se cerró (falta ")', line);
-      toks.push({ t: 'str', v: s, line }); i = j + 1; continue;
-    }
-    if (c === "'") {
-      let j = i + 1, ch = src[j];
-      if (ch === '\\') { const e = src[j+1]; ch = e === 'n' ? '\n' : e === 't' ? '\t' : e; j++; }
-      j++;
-      if (src[j] !== "'" || ch === undefined) throw bErr("Carácter mal escrito: debe ser como 'a'", line);
-      toks.push({ t: 'num', v: ch.charCodeAt(0), line, isChar: true }); i = j + 1; continue;
-    }
-    const two = src.substr(i, 2);
-    if (ops2.includes(two)) { toks.push({ t: two, line }); i += 2; continue; }
-    if ('+-*/%<>=!(){}[];,&'.includes(c)) { toks.push({ t: c, line }); i++; continue; }
-    throw bErr(`Carácter no reconocido: ${c}`, line);
-  }
-  toks.push({ t: 'eof', line });
-  return toks;
-}
-
-function parse(toks) {
-  let p = 0;
-  const at = t => toks[p].t === t;
-  const next = () => toks[p++];
-  const accept = t => (toks[p].t === t ? toks[p++] : null);
-  const desc = tk => tk.t === 'eof' ? 'el final del archivo' : tk.t === 'id' ? `'${tk.v}'` : tk.t === 'num' ? `el número ${tk.v}` : tk.t === 'str' ? 'un texto entre comillas' : KW.has(tk.t) ? `la palabra '${tk.t}'` : `'${tk.t}'`;
-  const expect = (t, what) => {
-    if (toks[p].t === t) return toks[p++];
-    const ln = (t === ';' || t === ')' || t === ']') && p > 0 ? toks[p-1].line : toks[p].line;
-    throw bErr(`Se esperaba ${what || `'${t}'`} y se encontró ${desc(toks[p])}`, ln);
-  };
-  const TYPES = new Set(['int','void','char','bool','semaphore','binarysem','condition']);
-  const isType = () => TYPES.has(toks[p].t);
-  const isL = e => e.k === 'var' || e.k === 'idx';
-
-  function parseDeclList(type, isConst) {
-    if (type === 'void') throw bErr('Solo las funciones pueden ser void; una variable necesita un tipo como int', toks[p].line);
-    const out = [];
-    do {
-      const nm = expect('id', 'el nombre de la variable');
-      const d = { k: 'decl', type, name: nm.v, line: nm.line, isConst };
-      if (accept('[')) { d.size = parseExpr(); expect(']'); }
-      if (accept('=')) {
-        if (d.size) throw bErr('Un arreglo no se puede inicializar en la declaración; asigna cada posición', nm.line);
-        d.init = parseAssign();
-      } else if (isConst) throw bErr(`La constante '${nm.v}' necesita un valor: const int ${nm.v} = ...;`, nm.line);
-      out.push(d);
-    } while (accept(','));
-    return out;
-  }
-  function parseBlock() {
-    const open = expect('{');
-    const body = [];
-    while (!at('}')) {
-      if (at('eof')) throw bErr(`Falta cerrar con '}' la llave que se abrió en la línea ${open.line}`, open.line);
-      body.push(parseStmt());
-    }
-    next();
-    return { k: 'block', body, line: open.line };
-  }
-  function parseStmt() {
-    const tk = toks[p];
-    switch (tk.t) {
-      case '{': return parseBlock();
-      case ';': next(); return { k: 'empty', line: tk.line };
-      case 'const': case 'int': case 'char': case 'bool': case 'semaphore': case 'binarysem': case 'void': case 'condition': {
-        const c = !!accept('const'); const type = next().t;
-        const decls = parseDeclList(type, c); expect(';');
-        return { k: 'decls', decls, line: tk.line };
-      }
-      case 'if': {
-        next(); expect('('); const cond = parseExpr(); expect(')');
-        const then = parseStmt(); const els = accept('else') ? parseStmt() : null;
-        return { k: 'if', cond, then, els, line: tk.line };
-      }
-      case 'while': { next(); expect('('); const cond = parseExpr(); expect(')'); return { k: 'while', cond, body: parseStmt(), line: tk.line }; }
-      case 'do': {
-        next(); const body = parseStmt(); const w = expect('while'); expect('(');
-        const cond = parseExpr(); expect(')'); expect(';');
-        return { k: 'do', body, cond, line: tk.line, condLine: w.line };
-      }
-      case 'for': {
-        next(); expect('(');
-        let init = null;
-        if (isType() || at('const')) { const c = !!accept('const'); const type = next().t; init = { k: 'decls', decls: parseDeclList(type, c), line: tk.line }; }
-        else if (!at(';')) init = parseExpr();
-        expect(';');
-        const cond = at(';') ? null : parseExpr(); expect(';');
-        const step = at(')') ? null : parseExpr(); expect(')');
-        return { k: 'for', init, cond, step, body: parseStmt(), line: tk.line };
-      }
-      case 'return': { next(); const e = at(';') ? null : parseExpr(); expect(';'); return { k: 'return', e, line: tk.line }; }
-      case 'break': next(); expect(';'); return { k: 'break', line: tk.line };
-      case 'continue': next(); expect(';'); return { k: 'continue', line: tk.line };
-      case 'cobegin': { next(); const body = parseBlock(); return { k: 'cobegin', body, line: tk.line }; }
-      case 'cout': {
-        next(); const items = [];
-        while (accept('<<')) {
-          if (accept('endl')) items.push({ endl: true });
-          else items.push({ e: parseAdd() });
-        }
-        if (!items.length) throw bErr('Después de cout va << y lo que quieres mostrar', tk.line);
-        expect(';');
-        return { k: 'cout', items, line: tk.line };
-      }
-      case 'endl': throw bErr('endl solo se usa dentro de cout: cout << ... << endl;', tk.line);
-      default: {
-        if (tk.t === 'id' && tk.v === 'cin') throw bErr('cin (leer del teclado) no está disponible en esta versión', tk.line);
-        const e = parseExpr(); expect(';');
-        return { k: 'expr', e, line: tk.line };
-      }
-    }
-  }
-  function parseExpr() { return parseAssign(); }
-  function parseAssign() {
-    const left = parseOr();
-    const t = toks[p].t;
-    if (t === '=' || t === '+=' || t === '-=' || t === '*=' || t === '/=' || t === '%=') {
-      const op = next();
-      if (!isL(left)) throw bErr('A la izquierda de = debe ir una variable', op.line);
-      const value = parseAssign();
-      return { k: 'assign', op: op.t, target: left, value, line: op.line };
-    }
-    return left;
-  }
-  function binary(sub, ops) {
-    return function () {
-      let a = sub();
-      while (ops.includes(toks[p].t)) { const op = next(); const b = sub(); a = { k: 'bin', op: op.t, a, b, line: op.line }; }
-      return a;
-    };
-  }
-  function parseUnary() {
-    const tk = toks[p];
-    if (tk.t === '!' || tk.t === '-' || tk.t === '+') { next(); return { k: 'un', op: tk.t, e: parseUnary(), line: tk.line }; }
-    if (tk.t === '++' || tk.t === '--') {
-      next(); const t = parseUnary();
-      if (!isL(t)) throw bErr(`${tk.t} necesita una variable`, tk.line);
-      return { k: 'pre', op: tk.t, target: t, line: tk.line };
-    }
-    return parsePostfix();
-  }
-  function parsePostfix() {
-    let e = parsePrimary();
-    for (;;) {
-      const tk = toks[p];
-      if (tk.t === '[') {
-        if (e.k !== 'var') throw bErr('Solo se puede usar [ ] sobre el nombre de un arreglo', tk.line);
-        next(); const index = parseExpr(); expect(']');
-        e = { k: 'idx', name: e.name, index, line: tk.line };
-      } else if (tk.t === '++' || tk.t === '--') {
-        if (!isL(e)) throw bErr(`${tk.t} necesita una variable`, tk.line);
-        next(); e = { k: 'post', op: tk.t, target: e, line: tk.line };
-      } else break;
-    }
-    return e;
-  }
-  function parsePrimary() {
-    const tk = next();
-    switch (tk.t) {
-      case 'num': return { k: 'num', v: tk.v, line: tk.line, isChar: !!tk.isChar };
-      case 'true': return { k: 'num', v: 1, line: tk.line };
-      case 'false': return { k: 'num', v: 0, line: tk.line };
-      case 'str': return { k: 'str', v: tk.v, line: tk.line };
-      case 'id':
-        if (at('(')) {
-          next(); const args = [];
-          if (!at(')')) { do { args.push(parseAssign()); } while (accept(',')); }
-          expect(')');
-          return { k: 'call', name: tk.v, args, line: tk.line };
-        }
-        return { k: 'var', name: tk.v, line: tk.line };
-      case '(': { const e = parseExpr(); expect(')'); return e; }
-    }
-    p--;
-    throw bErr(`No se esperaba ${desc(tk)} aquí`, tk.line);
-  }
-  const parseMul = binary(parseUnary, ['*','/','%']);
-  const parseAdd = binary(parseMul, ['+','-']);
-  const parseRel = binary(parseAdd, ['<','<=','>','>=']);
-  const parseEq = binary(parseRel, ['==','!=']);
-  const parseAnd = binary(parseEq, ['&&']);
-  const parseOr = binary(parseAnd, ['||']);
-
-  const prog = { globals: [], funcs: new Map(), monitors: [] };
-  function parseMonitor() {
-    const kw = next();
-    const name = expect('id', 'el nombre del monitor');
-    if (prog.monitors.some(m => m.name === name.v)) throw bErr(`El monitor '${name.v}' ya estaba definido`, name.line);
-    const mon = { k: 'monitor', name: name.v, decls: [], init: null, line: kw.line };
-    const open = expect('{');
-    while (!at('}')) {
-      if (at('eof')) throw bErr(`Falta cerrar con '}' el monitor '${name.v}' (se abrió en la línea ${open.line})`, open.line);
-      if (at('monitor')) throw bErr('No se puede definir un monitor dentro de otro', toks[p].line);
-      if (toks[p].t === 'id' && toks[p].v === 'init' && toks[p+1].t === '{') {
-        const it = next();
-        if (mon.init) throw bErr(`El monitor '${name.v}' ya tiene un bloque init`, it.line);
-        mon.init = parseBlock();
-        continue;
-      }
-      parseTopItem(mon.decls, mon.name);
-    }
-    next();
-    accept(';');
-    prog.globals.push(mon);
-    prog.monitors.push(mon);
-  }
-  while (!at('eof')) {
-    if (at('monitor')) { parseMonitor(); continue; }
-    parseTopItem(prog.globals, null);
-  }
-  function parseTopItem(declTarget, monName) {
-    let isConst = !!accept('const');
-    const atomic = !!accept('atomic');
-    if (!isConst && accept('const')) isConst = true;
-    if (!isType()) throw bErr(`Se esperaba una declaración (int, void, semaphore, binarysem${monName ? ', condition' : ', monitor'}...) y se encontró ${desc(toks[p])}`, toks[p].line);
-    const type = next().t;
-    if (type === 'condition' && !monName) throw bErr('Una variable condition solo puede declararse dentro de un monitor', toks[p-1].line);
-    const name = expect('id', 'un nombre');
-    if (at('(')) {
-      next();
-      const params = [];
-      if (at('void') && toks[p+1].t === ')') next();
-      else if (!at(')')) {
-        do {
-          if (!isType()) throw bErr(`Se esperaba el tipo del parámetro y se encontró ${desc(toks[p])}`, toks[p].line);
-          const pt = next().t;
-          const amp = !!accept('&');
-          const pn = expect('id', 'el nombre del parámetro');
-          let isArr = false;
-          if (accept('[')) { expect(']'); isArr = true; }
-          params.push({ type: pt, name: pn.v, ref: amp, isArr });
-        } while (accept(','));
-      }
-      expect(')');
-      if (prog.funcs.has(name.v)) throw bErr(`La función '${name.v}' ya estaba definida`, name.line);
-      if (monName && name.v === 'main') throw bErr('main() no puede ir dentro de un monitor', name.line);
-      const body = parseBlock();
-      prog.funcs.set(name.v, { name: name.v, type, params, body, atomic, line: name.line, monitor: monName });
-    } else {
-      p--;
-      declTarget.push(...parseDeclList(type, isConst));
-      expect(';');
-    }
-  }
-  if (!prog.funcs.has('main')) throw bErr('Falta la función main()', toks[toks.length - 1].line);
-  return prog;
-}
-
-const BUILTINS = { wait: [1], signal: [1], p: [1], v: [1], P: [1], V: [1], initialsem: [2], random: [1], waitc: [1, 2], signalc: [1], empty: [1] };
-const MON_ONLY = new Set(['waitc', 'signalc', 'empty']);
-function check(prog) {
-  let ctx = null;   // monitor de la función que se está revisando
-  const visit = n => {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) { n.forEach(visit); return; }
-    if (n.k === 'call') {
-      const fn = prog.funcs.get(n.name);
-      if (fn) {
-        if (fn.params.length !== n.args.length) throw bErr(`${n.name}() recibe ${fn.params.length} argumento(s) y aquí se le pasan ${n.args.length}`, n.line);
-        if (n.name === 'main') throw bErr('main() no se puede llamar desde el programa', n.line);
-      } else if (n.name in BUILTINS) {
-        const ok = BUILTINS[n.name];
-        if (!ok.includes(n.args.length)) throw bErr(`${n.name}() recibe ${ok.join(' o ')} argumento(s)`, n.line);
-        if (MON_ONLY.has(n.name) && !ctx) throw bErr(`${n.name}() solo se puede usar dentro de un procedimiento de un monitor`, n.line);
-      } else throw bErr(`La función '${n.name}' no existe`, n.line);
-    }
-    if (n.k === 'monitor') { const prev = ctx; ctx = n.name; visit(n.decls); visit(n.init); ctx = prev; return; }
-    for (const k in n) if (k !== 'line') visit(n[k]);
-  };
-  for (const f of prog.funcs.values()) { ctx = f.monitor || null; visit(f.body); }
-  ctx = null;
-  visit(prog.globals);
-  const main = prog.funcs.get('main');
-  if (main.params.length) throw bErr('main() no debe recibir parámetros', main.line);
-}
-
-function compileSource(src) { const prog = parse(lex(src)); check(prog); return prog; }
-
-class Machine {
-  constructor(prog, rnd) {
-    this.prog = prog; this.rnd = rnd || Math.random;
-    this.globals = new Map(); this.globalScope = { vars: this.globals, parent: null };
-    this.procs = []; this.sems = []; this.out = []; this.outBase = 0;
-    this.monitors = new Map(); this.seq = 0;
-    this.steps = 0; this.status = 'ready'; this.error = null; this.cur = null; this.quantum = 0; this.main = null;
-  }
-  boot() {
-    const dummy = { pid: -1, name: '(global)', depth: 0, atomic: 0, mon: null };
-    for (const d of this.prog.globals) {
-      if (d.k === 'monitor') {
-        const mon = { name: d.name, owner: null, entry: [], urgent: [], conds: [], scope: { vars: new Map(), parent: null }, init: d.init };
-        this.monitors.set(d.name, mon);
-        const md = { pid: -1, name: `(monitor ${d.name})`, depth: 0, atomic: 0, mon };
-        for (const x of d.decls) this.runSync(this.declare(x, mon.scope, md, mon));
-      } else this.runSync(this.declare(d, this.globalScope, dummy));
-    }
-    // los bloques init de los monitores corren antes que main
-    for (const mon of this.monitors.values()) {
-      if (!mon.init) continue;
-      const md = { pid: -1, name: `init de ${mon.name}`, depth: 0, atomic: 0, mon, state: 'ready' };
-      const g = this.execBlock(mon.init, md, mon.scope);
-      let r; do { r = g.next(); if (!r.done && md.state !== 'ready') throw bErr(`El init del monitor '${mon.name}' no puede quedarse esperando`, mon.init.line); } while (!r.done);
-    }
-    const main = this.newProc('main', null);
-    main.gen = this.callFunc(this.prog.funcs.get('main'), [], main);
-    this.main = main;
-  }
-  runSync(g) { let r; do { r = g.next(); } while (!r.done); return r.value; }
-  newProc(name, parent) {
-    const pid = this.procs.length;
-    const p = { pid, name, parent, state: 'ready', line: null, gen: null, blockedOn: null, children: 0, spawning: false, depth: 0, atomic: 0, mon: null, color: pid === 0 ? 0 : ((pid - 1) % 8) + 1 };
-    this.procs.push(p);
-    return p;
-  }
-  write(proc, text, cls) {
-    const segs = this.out, last = segs[segs.length - 1];
-    if (last && last.pid === proc.pid && !cls && !last.cls) last.text += text;
-    else segs.push({ pid: proc.pid, color: proc.color, text, cls });
-    if (segs.length > 3000) { segs.splice(0, 1000); this.outBase++; }
-  }
-  note(text, cls) { this.out.push({ pid: -9, color: 0, text, cls }); }
-  lookup(name, scope, line) {
-    for (let s = scope; s; s = s.parent) { const c = s.vars.get(name); if (c) return c; }
-    const g = this.globals.get(name); if (g) return g;
-    throw bErr(`La variable '${name}' no está declarada`, line);
-  }
-  semOf(arg, fname, scope, line) {
-    if (!arg || arg.k !== 'var') throw bErr(`${fname}() necesita el nombre de un semáforo`, line);
-    const c = this.lookup(arg.name, scope, line);
-    if (c.kind !== 'sem') throw bErr(`'${arg.name}' no es un semáforo: decláralo como semaphore o binarysem`, line);
-    return c.sem;
-  }
-  arith(op, a, b, line) {
-    switch (op) {
-      case '+': return (a + b) | 0;
-      case '-': return (a - b) | 0;
-      case '*': return Math.imul(a, b);
-      case '/': if (b === 0) throw bErr('División por cero', line); return Math.trunc(a / b) | 0;
-      case '%': if (b === 0) throw bErr('División por cero (operador %)', line); return (a % b) | 0;
-      case '<': return a < b ? 1 : 0;
-      case '<=': return a <= b ? 1 : 0;
-      case '>': return a > b ? 1 : 0;
-      case '>=': return a >= b ? 1 : 0;
-      case '==': return a === b ? 1 : 0;
-      case '!=': return a !== b ? 1 : 0;
-    }
-    throw bErr(`Operador desconocido ${op}`, line);
-  }
-  *declare(d, scope, proc, mon) {
-    if (scope.vars.has(d.name)) throw bErr(`'${d.name}' ya fue declarada antes`, d.line);
-    if (d.type === 'condition') {
-      if (!mon) throw bErr('Una variable condition solo puede declararse en la parte de variables de un monitor', d.line);
-      if (d.size || d.init) throw bErr('Una condition se declara sola: condition nombre;', d.line);
-      const cond = { name: d.name, mon, queue: [] };
-      mon.conds.push(cond);
-      scope.vars.set(d.name, { kind: 'cond', cond });
-      return;
-    }
-    if (d.type === 'semaphore' || d.type === 'binarysem') {
-      let v = 0;
-      if (d.init) v = yield* this.ev(d.init, proc, scope);
-      if (d.size) throw bErr('Los arreglos de semáforos no están soportados', d.line);
-      if (d.type === 'binarysem' && v !== 0 && v !== 1) throw bErr(`Un binarysem solo puede valer 0 o 1 (aquí empieza en ${v})`, d.line);
-      if (v < 0) throw bErr('Un semáforo no puede empezar con un valor negativo', d.line);
-      const sem = { name: d.name, binary: d.type === 'binarysem', value: v, init: v, queue: [], local: proc.pid >= 0 };
-      this.sems.push(sem);
-      scope.vars.set(d.name, { kind: 'sem', sem });
-      return;
-    }
-    if (d.size) {
-      const n = yield* this.ev(d.size, proc, scope);
-      if (n <= 0) throw bErr(`El tamaño del arreglo '${d.name}' debe ser mayor que 0`, d.line);
-      if (n > 100000) throw bErr('Arreglo demasiado grande', d.line);
-      scope.vars.set(d.name, { kind: 'arr', type: d.type, arr: new Array(n).fill(0) });
-      return;
-    }
-    let v = 0;
-    if (d.init) v = yield* this.ev(d.init, proc, scope);
-    scope.vars.set(d.name, { kind: 'int', type: d.type, v, isConst: d.isConst });
-  }
-  *lref(e, proc, scope) {
-    if (e.k === 'var') {
-      const c = this.lookup(e.name, scope, e.line);
-      if (c.kind === 'sem') throw bErr(`'${e.name}' es un semáforo: no se le asigna un valor con =. Usa wait(${e.name}) y signal(${e.name})`, e.line);
-      if (c.kind === 'cond') throw bErr(`'${e.name}' es una condition: no se le asigna un valor. Usa waitc(${e.name}) y signalc(${e.name})`, e.line);
-      if (c.kind === 'arr') throw bErr(`'${e.name}' es un arreglo: usa ${e.name}[i]`, e.line);
-      if (c.isConst) throw bErr(`'${e.name}' es constante y no se puede cambiar`, e.line);
-      return c;
-    }
-    const c = this.lookup(e.name, scope, e.line);
-    if (c.kind !== 'arr') throw bErr(`'${e.name}' no es un arreglo`, e.line);
-    const i = yield* this.ev(e.index, proc, scope);
-    if (i < 0 || i >= c.arr.length) throw bErr(`Índice fuera del arreglo: ${e.name}[${i}] (tiene ${c.arr.length} posiciones, de 0 a ${c.arr.length - 1})`, e.line);
-    return { kind: 'int', type: c.type, get v() { return c.arr[i]; }, set v(x) { c.arr[i] = x; } };
-  }
-  *ev(e, proc, scope) {
-    switch (e.k) {
-      case 'num': return e.v;
-      case 'str': throw bErr('Un texto entre comillas solo se puede usar con cout', e.line);
-      case 'var': {
-        const c = this.lookup(e.name, scope, e.line);
-        if (c.kind === 'sem') throw bErr(`'${e.name}' es un semáforo: no se puede leer ni comparar como un número. Usa wait(${e.name}) y signal(${e.name})`, e.line);
-        if (c.kind === 'cond') throw bErr(`'${e.name}' es una condition: no tiene valor. Para saber si hay alguien esperando usa empty(${e.name})`, e.line);
-        if (c.kind === 'arr') throw bErr(`'${e.name}' es un arreglo: usa ${e.name}[i]`, e.line);
-        return c.v;
-      }
-      case 'idx': { const c = yield* this.lref(e, proc, scope); return c.v; }
-      case 'un': {
-        const v = yield* this.ev(e.e, proc, scope);
-        return e.op === '-' ? (-v | 0) : e.op === '!' ? (v ? 0 : 1) : v;
-      }
-      case 'bin': {
-        if (e.op === '&&') { const a = yield* this.ev(e.a, proc, scope); if (!a) return 0; const b = yield* this.ev(e.b, proc, scope); return b ? 1 : 0; }
-        if (e.op === '||') { const a = yield* this.ev(e.a, proc, scope); if (a) return 1; const b = yield* this.ev(e.b, proc, scope); return b ? 1 : 0; }
-        const a = yield* this.ev(e.a, proc, scope);
-        const b = yield* this.ev(e.b, proc, scope);
-        return this.arith(e.op, a, b, e.line);
-      }
-      case 'assign': {
-        const c = yield* this.lref(e.target, proc, scope);
-        let v = yield* this.ev(e.value, proc, scope);
-        if (e.op !== '=') v = this.arith(e.op[0], c.v, v, e.line);
-        yield { line: e.line };          // aquí puede cambiar de proceso: entre leer y guardar
-        c.v = v;
-        return v;
-      }
-      case 'pre': {
-        const c = yield* this.lref(e.target, proc, scope);
-        const v = (c.v + (e.op === '++' ? 1 : -1)) | 0;
-        yield { line: e.line };
-        c.v = v; return v;
-      }
-      case 'post': {
-        const c = yield* this.lref(e.target, proc, scope);
-        const old = c.v;
-        yield { line: e.line };
-        c.v = (old + (e.op === '++' ? 1 : -1)) | 0; return old;
-      }
-      case 'call': return yield* this.call(e, proc, scope);
-    }
-    throw bErr('Expresión no soportada', e.line);
-  }
-  *argCells(fn, e, proc, scope) {
-    const cells = [];
-    for (let i = 0; i < fn.params.length; i++) {
-      const pa = fn.params[i], a = e.args[i];
-      if (pa.type === 'semaphore' || pa.type === 'binarysem') {
-        cells.push({ kind: 'sem', sem: this.semOf(a, fn.name, scope, e.line) });
-      } else if (pa.isArr) {
-        if (a.k !== 'var') throw bErr(`El parámetro ${i + 1} de ${fn.name}() espera un arreglo`, e.line);
-        const c = this.lookup(a.name, scope, e.line);
-        if (c.kind !== 'arr') throw bErr(`El parámetro ${i + 1} de ${fn.name}() espera un arreglo`, e.line);
-        cells.push(c);
-      } else if (pa.ref) {
-        if (a.k !== 'var' && a.k !== 'idx') throw bErr(`El parámetro ${i + 1} de ${fn.name}() es por referencia (&): pásale una variable`, e.line);
-        cells.push(yield* this.lref(a, proc, scope));
-      } else {
-        const v = yield* this.ev(a, proc, scope);
-        cells.push({ kind: 'int', type: pa.type, v });
-      }
-    }
-    return cells;
-  }
-  *call(e, proc, scope) {
-    const fn = this.prog.funcs.get(e.name);
-    if (!fn) {
-      switch (e.name) {
-        case 'wait': case 'p': case 'P': { const s = this.semOf(e.args[0], e.name, scope, e.line); yield* this.semWait(s, proc, e.line); return 0; }
-        case 'signal': case 'v': case 'V': { const s = this.semOf(e.args[0], e.name, scope, e.line); this.semSignal(s, proc, e.line); return 0; }
-        case 'initialsem': {
-          const s = this.semOf(e.args[0], e.name, scope, e.line);
-          const v = yield* this.ev(e.args[1], proc, scope);
-          if (v < 0 || (s.binary && v > 1)) throw bErr(`Valor inválido para el semáforo '${s.name}': ${v}`, e.line);
-          s.value = v; s.init = v; return 0;
-        }
-        case 'random': {
-          const n = yield* this.ev(e.args[0], proc, scope);
-          if (n <= 0) throw bErr('random(n) necesita un n mayor que 0', e.line);
-          return Math.floor(this.rnd() * n);
-        }
-        case 'waitc': {
-          const c = this.condOf(e.args[0], e.name, scope, proc, e.line);
-          let prio = 10;
-          if (e.args.length > 1) prio = yield* this.ev(e.args[1], proc, scope);
-          yield* this.condWait(c, prio, proc, e.line);
-          return 0;
-        }
-        case 'signalc': { const c = this.condOf(e.args[0], e.name, scope, proc, e.line); yield* this.condSignal(c, proc, e.line); return 0; }
-        case 'empty': { const c = this.condOf(e.args[0], e.name, scope, proc, e.line); return c.queue.length ? 0 : 1; }
-      }
-      throw bErr(`La función '${e.name}' no existe`, e.line);
-    }
-    const cells = yield* this.argCells(fn, e, proc, scope);
-    return yield* this.callFunc(fn, cells, proc);
-  }
-  *callFunc(fn, cells, proc) {
-    const mon = fn.monitor ? this.monitors.get(fn.monitor) : null;
-    const scope = { vars: new Map(), parent: mon ? mon.scope : null };
-    fn.params.forEach((pa, i) => scope.vars.set(pa.name, cells[i]));
-    proc.depth++;
-    if (proc.depth > 300) throw bErr(`Demasiadas llamadas anidadas a ${fn.name}() (¿recursión infinita?)`, fn.line);
-    const outer = proc.mon;
-    const enters = mon && outer !== mon;   // si ya está dentro del mismo monitor, no vuelve a entrar
-    if (enters) { yield* this.monEnter(mon, proc, fn.line); proc.mon = mon; }
-    if (fn.atomic) proc.atomic++;
-    const r = yield* this.execBlock(fn.body, proc, scope);
-    if (fn.atomic) proc.atomic--;
-    if (enters) { proc.mon = outer; this.monRelease(mon); }
-    proc.depth--;
-    if (r && (r.brk || r.cont)) throw bErr('break o continue fuera de un ciclo', fn.line);
-    return r && r.ret ? r.value : 0;
-  }
-  *semWait(s, proc, line) {
-    if (s.value > 0) { s.value--; return; }
-    s.queue.push(proc);
-    proc.state = 'blocked'; proc.blockedOn = s; proc.blockKind = 'sem';
-    yield { line };
-  }
-  /* ---- monitores (semántica de Hoare, como BACI) ---- */
-  condOf(arg, fname, scope, proc, line) {
-    if (!arg || arg.k !== 'var') throw bErr(`${fname}() necesita el nombre de una condition`, line);
-    const c = this.lookup(arg.name, scope, line);
-    if (c.kind !== 'cond') throw bErr(`'${arg.name}' no es una condition del monitor`, line);
-    if (proc.mon !== c.cond.mon) throw bErr(`${fname}(${arg.name}) solo se puede usar dentro de un procedimiento del monitor '${c.cond.mon.name}'`, line);
-    return c.cond;
-  }
-  wake(q) { q.state = 'ready'; q.blockedOn = null; q.blockKind = null; }
-  *monEnter(mon, proc, line) {
-    if (!mon.owner) { mon.owner = proc; return; }
-    mon.entry.push(proc);
-    proc.state = 'blocked'; proc.blockedOn = mon; proc.blockKind = 'entry';
-    yield { line };                      // al despertar, ya es dueño del monitor
-  }
-  monRelease(mon) {
-    // primero los que hicieron signalc y cedieron el monitor; después los que esperan entrar
-    if (mon.urgent.length) { const q = mon.urgent.pop(); mon.owner = q; this.wake(q); return; }
-    if (mon.entry.length) { const i = Math.floor(this.rnd() * mon.entry.length); const q = mon.entry.splice(i, 1)[0]; mon.owner = q; this.wake(q); return; }
-    mon.owner = null;
-  }
-  *condWait(c, prio, proc, line) {
-    c.queue.push({ proc, prio, seq: this.seq++ });
-    proc.state = 'blocked'; proc.blockedOn = c; proc.blockKind = 'cond';
-    this.monRelease(c.mon);
-    yield { line };                      // al despertar, signalc ya le pasó el monitor
-  }
-  *condSignal(c, proc, line) {
-    if (!c.queue.length) return;         // sin nadie esperando, signalc no hace nada
-    let best = 0;
-    for (let i = 1; i < c.queue.length; i++) {
-      const a = c.queue[i], b = c.queue[best];
-      if (a.prio < b.prio || (a.prio === b.prio && a.seq < b.seq)) best = i;
-    }
-    const w = c.queue.splice(best, 1)[0].proc;
-    const mon = c.mon;
-    mon.owner = w; this.wake(w);         // el despertado entra de inmediato
-    mon.urgent.push(proc);               // y el que hizo signalc espera a que se lo devuelvan
-    proc.state = 'blocked'; proc.blockedOn = mon; proc.blockKind = 'urgent';
-    yield { line };
-  }
-  semSignal(s, proc, line) {
-    if (s.queue.length) {
-      const i = Math.floor(this.rnd() * s.queue.length);
-      const q = s.queue.splice(i, 1)[0];
-      this.wake(q);
-      return;
-    }
-    if (s.binary && s.value >= 1) { this.note(`[aviso] línea ${line}: signal(${s.name}) con el binarysem ya en 1; se queda en 1.\n`, 'warn'); return; }
-    s.value++;
-  }
-  *spawn(e, proc, scope) {
-    const fn = this.prog.funcs.get(e.name);
-    const cells = yield* this.argCells(fn, e, proc, scope);
-    const shown = cells.map((c, i) => c.kind === 'sem' ? c.sem.name : c.kind === 'arr' ? e.args[i].name : String(c.v)).join(', ');
-    const child = this.newProc(`${fn.name}(${shown})`, proc);
-    child.gen = this.callFunc(fn, cells, child);
-    proc.children++;
-  }
-  *execBlock(b, proc, scope) {
-    const inner = { vars: new Map(), parent: scope };
-    for (const s of b.body) {
-      const r = yield* this.ex(s, proc, inner);
-      if (r) return r;
-    }
-  }
-  *ex(s, proc, scope) {
-    switch (s.k) {
-      case 'block': return yield* this.execBlock(s, proc, scope);
-      case 'empty': return;
-      case 'decls':
-        yield { line: s.line };
-        for (const d of s.decls) yield* this.declare(d, scope, proc);
-        return;
-      case 'expr':
-        yield { line: s.line };
-        if (proc.spawning && s.e.k === 'call' && this.prog.funcs.has(s.e.name)) { yield* this.spawn(s.e, proc, scope); return; }
-        yield* this.ev(s.e, proc, scope);
-        return;
-      case 'cout': {
-        yield { line: s.line };
-        let first = true;
-        for (const it of s.items) {
-          if (!first) yield { line: s.line };   // jBACI puede cambiar de proceso a mitad de un cout
-          first = false;
-          if (it.endl) this.write(proc, '\n');
-          else if (it.e.k === 'str') this.write(proc, it.e.v);
-          else if (it.e.k === 'num' && it.e.isChar) this.write(proc, String.fromCharCode(it.e.v));
-          else {
-            const v = yield* this.ev(it.e, proc, scope);
-            let isChar = false;
-            if (it.e.k === 'var' || it.e.k === 'idx') { const c = this.lookup(it.e.name, scope, it.e.line); isChar = c.type === 'char'; }
-            this.write(proc, isChar ? String.fromCharCode(v) : String(v));
-          }
-        }
-        return;
-      }
-      case 'if': {
-        yield { line: s.line };
-        const c = yield* this.ev(s.cond, proc, scope);
-        if (c) return yield* this.ex(s.then, proc, scope);
-        if (s.els) return yield* this.ex(s.els, proc, scope);
-        return;
-      }
-      case 'while':
-        for (;;) {
-          yield { line: s.line };
-          const c = yield* this.ev(s.cond, proc, scope);
-          if (!c) break;
-          const r = yield* this.ex(s.body, proc, scope);
-          if (r) { if (r.brk) break; if (r.cont) continue; return r; }
-        }
-        return;
-      case 'do':
-        for (;;) {
-          const r = yield* this.ex(s.body, proc, scope);
-          if (r) { if (r.brk) break; if (!r.cont) return r; }
-          yield { line: s.condLine };
-          const c = yield* this.ev(s.cond, proc, scope);
-          if (!c) break;
-        }
-        return;
-      case 'for': {
-        const fs = { vars: new Map(), parent: scope };
-        yield { line: s.line };
-        if (s.init) {
-          if (s.init.k === 'decls') { for (const d of s.init.decls) yield* this.declare(d, fs, proc); }
-          else yield* this.ev(s.init, proc, fs);
-        }
-        for (;;) {
-          yield { line: s.line };
-          if (s.cond) { const c = yield* this.ev(s.cond, proc, fs); if (!c) break; }
-          const r = yield* this.ex(s.body, proc, fs);
-          if (r) { if (r.brk) break; if (!r.cont) return r; }
-          if (s.step) yield* this.ev(s.step, proc, fs);
-        }
-        return;
-      }
-      case 'return': {
-        yield { line: s.line };
-        let v = 0;
-        if (s.e) v = yield* this.ev(s.e, proc, scope);
-        return { ret: true, value: v };
-      }
-      case 'break': yield { line: s.line }; return { brk: true };
-      case 'continue': yield { line: s.line }; return { cont: true };
-      case 'cobegin': {
-        yield { line: s.line };
-        if (proc !== this.main || proc.depth !== 1) throw bErr('cobegin solo puede ir directamente dentro de main()', s.line);
-        if (proc.spawning) throw bErr('No se puede poner un cobegin dentro de otro', s.line);
-        proc.spawning = true;
-        const r = yield* this.execBlock(s.body, proc, scope);
-        proc.spawning = false;
-        if (proc.children > 0) { proc.state = 'cobegin'; yield { line: s.line }; }
-        return r;
-      }
-    }
-    throw bErr('Instrucción no soportada', s.line);
-  }
-  // Ejecuta un paso. Devuelve false cuando ya no se puede seguir.
-  step() {
-    if (this.status !== 'ready' && this.status !== 'running') return false;
-    this.status = 'running';
-    let p = this.cur;
-    const keep = p && p.state === 'ready' && (p.atomic > 0 || this.quantum > 0);
-    if (!keep) {
-      const ready = this.procs.filter(q => q.state === 'ready');
-      if (!ready.length) {
-        if (this.procs.every(q => q.state === 'done')) { this.status = 'done'; this.cur = null; return false; }
-        this.status = 'deadlock'; this.cur = null; return false;
-      }
-      p = ready[Math.floor(this.rnd() * ready.length)];
-      this.cur = p;
-      this.quantum = 1 + Math.floor(this.rnd() * 4);
-    }
-    this.quantum--;
-    let r;
-    try { r = p.gen.next(); }
-    catch (e) {
-      this.status = 'error';
-      this.error = { msg: e instanceof BaciError ? e.message : 'Error interno: ' + e.message, line: (e && e.line) || p.line, proc: p.name };
-      return false;
-    }
-    this.steps++;
-    if (r.done) {
-      p.state = 'done'; p.line = null;
-      if (p.parent) { p.parent.children--; if (p.parent.children === 0 && p.parent.state === 'cobegin') p.parent.state = 'ready'; }
-      if (this.procs.every(q => q.state === 'done')) { this.status = 'done'; this.cur = null; return false; }
-    } else if (r.value && r.value.line) p.line = r.value.line;
-    return true;
-  }
-}
-// ==INTERP END==
-
-/* ---------------- ejemplos ---------------- */
-const EJEMPLOS = [
-{ id: '01s', file: '01-impresora-semaphore.cm', name: '01 · Impresora con semaphore = 1', code:
-`semaphore impresora = 1;
-
-void persona(int id) {
-    int hoja;
-    cout << "Persona " << id << " quiere imprimir." << endl;
-
-    wait(impresora);
-
-    cout << "Persona " << id << " esta imprimiendo." << endl;
-    for (hoja = 1; hoja <= 5; hoja++) {
-        cout << "Persona " << id << " imprimiendo hoja " << hoja << endl;
-    }
-    cout << "Persona " << id << " libera la impresora." << endl;
-
-    signal(impresora);
-}
-
-void main() {
-    cobegin {
-        persona(1);
-        persona(2);
-        persona(3);
-    }
-
-    cout << "Todos los procesos han terminado." << endl;
-}
-` },
-{ id: '01', file: '01-impresora-uno-a-la-vez.cm', name: '01 · Impresora con binarysem', code:
-`binarysem impresora = 1;
-
-void persona(int id) {
-    int hoja;
-    cout << "Persona " << id << " quiere imprimir." << endl;
-
-    wait(impresora);
-
-    cout << "Persona " << id << " esta imprimiendo." << endl;
-    for (hoja = 1; hoja <= 5; hoja++) {
-        cout << "Persona " << id << " imprimiendo hoja " << hoja << endl;
-    }
-    cout << "Persona " << id << " libera la impresora." << endl;
-
-    signal(impresora);
-}
-
-void main() {
-    cobegin {
-        persona(1);
-        persona(2);
-        persona(3);
-    }
-
-    cout << "Todos los procesos han terminado." << endl;
-}
-` },
-{ id: '06', file: '06-dos-impresoras-semaphore.cm', name: '06 · Dos impresoras (semaphore = 2)', code:
-`semaphore impresoras = 2;   /* GENERAL: cuantas impresoras libres hay */
-binarysem pantalla  = 1;    /* BINARIO: que los cout no se mezclen   */
-int usando = 0;
-
-void persona(int id) {
-    int hoja;
-
-    wait(pantalla);
-    cout << "Persona " << id << " quiere imprimir." << endl;
-    signal(pantalla);
-
-    wait(impresoras);                  /* toma una impresora libre (o espera) */
-
-    wait(pantalla);
-    usando = usando + 1;
-    cout << "Persona " << id << " esta imprimiendo. Impresoras en uso: " << usando << endl;
-    signal(pantalla);
-
-    for (hoja = 1; hoja <= 3; hoja++) {
-        wait(pantalla);
-        cout << "Persona " << id << " imprimiendo hoja " << hoja << endl;
-        signal(pantalla);
-    }
-
-    wait(pantalla);
-    usando = usando - 1;
-    cout << "Persona " << id << " libera su impresora. Impresoras en uso: " << usando << endl;
-    signal(pantalla);
-
-    signal(impresoras);                /* devuelve la impresora */
-}
-
-void main() {
-    cobegin {
-        persona(1);
-        persona(2);
-        persona(3);
-        persona(4);
-    }
-
-    cout << "Todos los procesos han terminado." << endl;
-}
-` },
-{ id: '02', file: '02-trafico-cruce-uno-a-la-vez.cm', name: '02 · Cruce, un auto a la vez', code:
-`/*
- 02-trafico-cruce-uno-a-la-vez.cm : 4 autos (procesos) quieren pasar por un cruce.
- En el cruce cabe UN solo auto a la vez; si entran dos, chocan.
- El semaforo "cruce" deja pasar a un auto por vez.
-
-   cruce = 1  -> luz verde: el cruce esta libre
-   cruce = 0  -> luz roja: hay un auto cruzando; el que llega, espera
-*/
-
-binarysem cruce = 1;
-
-void autoQueCruza(int id) {
-    int tramo;
-    cout << "Auto " << id << " llega al cruce." << endl;
-
-    wait(cruce);
-
-    cout << "Auto " << id << " tiene VERDE y entra al cruce." << endl;
-    for (tramo = 1; tramo <= 3; tramo++) {
-        cout << "Auto " << id << " cruzando, tramo " << tramo << endl;
-    }
-    cout << "Auto " << id << " sale del cruce." << endl;
-
-    signal(cruce);
-}
-
-void main() {
-    cobegin {
-        autoQueCruza(1);
-        autoQueCruza(2);
-        autoQueCruza(3);
-        autoQueCruza(4);
-    }
-
-    cout << "Todos los autos cruzaron sin chocar." << endl;
-}
-` },
-{ id: '03', file: '03-trafico-cruce-pantalla-protegida.cm', name: '03 · Cruce con pantalla protegida', code:
-`/*
- 03-trafico-cruce-pantalla-protegida.cm : igual que 02-trafico-cruce-uno-a-la-vez.cm,
- pero los mensajes ya no se mezclan.
-
- Problema de 02-trafico-cruce-uno-a-la-vez.cm: jBACI puede cambiar de proceso A MITAD de un cout,
- y la pantalla (Console) tambien es un recurso compartido.
-
- Solucion: un segundo semaforo, "pantalla", para que un solo auto
- escriba a la vez. Cada cout queda entre wait(pantalla) y signal(pantalla).
-
-   cruce    -> protege el cruce   (un auto cruzando a la vez)
-   pantalla -> protege la Console (un auto escribiendo a la vez)
-*/
-
-binarysem cruce = 1;
-binarysem pantalla = 1;
-
-void autoQueCruza(int id) {
-    int tramo;
-
-    wait(pantalla);
-    cout << "Auto " << id << " llega al cruce." << endl;
-    signal(pantalla);
-
-    wait(cruce);
-
-    wait(pantalla);
-    cout << "Auto " << id << " tiene VERDE y entra al cruce." << endl;
-    signal(pantalla);
-
-    for (tramo = 1; tramo <= 3; tramo++) {
-        wait(pantalla);
-        cout << "Auto " << id << " cruzando, tramo " << tramo << endl;
-        signal(pantalla);
-    }
-
-    wait(pantalla);
-    cout << "Auto " << id << " sale del cruce." << endl;
-    signal(pantalla);
-
-    signal(cruce);
-}
-
-void main() {
-    cobegin {
-        autoQueCruza(1);
-        autoQueCruza(2);
-        autoQueCruza(3);
-        autoQueCruza(4);
-    }
-
-    cout << "Todos los autos cruzaron sin chocar." << endl;
-}
-` },
-{ id: '04', file: '04-trafico-turnos-dos-calles.cm', name: '04 · Turnos entre dos calles', code:
-`/*
- 04-trafico-turnos-dos-calles.cm : un cruce con DOS calles que se turnan, como un semaforo real.
-
-   Calle Norte-Sur (NS): autos 1, 2, 3
-   Calle Este-Oeste (EO): autos 4, 5, 6
-
- Semaforos:
-   verdeNS = 1  -> Norte-Sur empieza con luz verde
-   verdeEO = 0  -> Este-Oeste empieza en rojo
-   pantalla     -> un solo auto escribe a la vez en la Console
-
- Cada auto espera SU verde, cruza y le da el verde a la OTRA calle.
- Resultado: los autos cruzan alternados NS, EO, NS, EO, NS, EO.
-
- Como verdeNS + verdeEO vale siempre 1 (o 0 mientras alguien cruza),
- nunca hay dos autos en el cruce a la vez.
-
- IMPORTANTE: las dos calles deben tener la misma cantidad de autos.
- Si una tiene mas, sus autos de sobra esperan un verde que nunca llega.
-*/
-
-binarysem verdeNS = 1;
-binarysem verdeEO = 0;
-binarysem pantalla = 1;
-
-void autoNS(int id) {
-    wait(pantalla);
-    cout << "Auto " << id << " (Norte-Sur) llega y espera su verde." << endl;
-    signal(pantalla);
-
-    wait(verdeNS);                         /* espera verde para Norte-Sur */
-
-    wait(pantalla);
-    cout << "  >> VERDE Norte-Sur: cruza el auto " << id << endl;
-    signal(pantalla);
-
-    signal(verdeEO);                       /* le da el verde a Este-Oeste */
-}
-
-void autoEO(int id) {
-    wait(pantalla);
-    cout << "Auto " << id << " (Este-Oeste) llega y espera su verde." << endl;
-    signal(pantalla);
-
-    wait(verdeEO);                         /* espera verde para Este-Oeste */
-
-    wait(pantalla);
-    cout << "  >> VERDE Este-Oeste: cruza el auto " << id << endl;
-    signal(pantalla);
-
-    signal(verdeNS);                       /* le da el verde a Norte-Sur */
-}
-
-void main() {
-    cobegin {
-        autoNS(1); autoNS(2); autoNS(3);
-        autoEO(4); autoEO(5); autoEO(6);
-    }
-
-    cout << "Todos los autos cruzaron, turnandose." << endl;
-}
-` },
-{ id: '05', file: '05-estacionamiento-examen-2025-1.cm', name: '05 · Estacionamiento (examen 2025-1)', code:
-`/*
- 05-estacionamiento-examen-2025-1.cm
- Basado en el Problema 4 de la Pauta del Examen de Sistemas Operativos 2025-1
- (alli resuelto en Python y en C con pthreads; aqui en C-- para jBACI).
-
- Un edificio tiene un estacionamiento con capacidad para 5 autos y UNA sola
- barrera, por la que pasa un auto a la vez (para entrar o para salir).
- Cada auto es un proceso.
-
- Semaforos:
-   cupos   = 5  -> semaforo GENERAL (contador): espacios libres.
-                   Si llegan mas de 5, los que sobran esperan.
-   barrera = 1  -> semaforo BINARIO: un solo auto en la barrera.
-                   Tambien protege la variable "dentro" y la Console.
-
- Equivalencias con la pauta:
-   Python: Semaphore(5).acquire() / release()   ->  wait(cupos) / signal(cupos)
-   C:      sem_wait / sem_post                  ->  wait(cupos) / signal(cupos)
-   C:      pthread_mutex_lock / unlock          ->  wait(barrera) / signal(barrera)
-*/
-
-semaphore cupos = 5;
-binarysem barrera = 1;
-int dentro = 0;
-
-void autoResidente(int id) {
-    int t;
-
-    wait(cupos);                       /* espera un espacio libre */
-
-    wait(barrera);                     /* entra por la barrera */
-    dentro = dentro + 1;
-    cout << "Auto " << id << " entra.  Autos dentro: " << dentro << endl;
-    signal(barrera);
-
-    /* tiempo estacionado.
-       OJO: el original tenia "dentro = dentro;" aqui, FUERA de la barrera.
-       Eso lee y vuelve a escribir "dentro" sin proteccion y puede borrar
-       el cambio de otro auto (condicion de carrera). Por eso el ciclo va vacio. */
-    for (t = 1; t <= 5; t++) {
-    }
-
-    wait(barrera);                     /* sale por la barrera */
-    dentro = dentro - 1;
-    cout << "Auto " << id << " sale.   Autos dentro: " << dentro << endl;
-    signal(barrera);
-
-    signal(cupos);                     /* libera su espacio */
-}
-
-void main() {
-    cobegin {
-        autoResidente(1); autoResidente(2); autoResidente(3);
-        autoResidente(4); autoResidente(5); autoResidente(6);
-        autoResidente(7);
-    }
-
-    cout << "Estacionamiento vacio. Autos dentro: " << dentro << endl;
-}
-` },
-{ id: 'tl', file: 'trafficlight-corregido.cm', name: 'Semáforo de tránsito A/B (trafficlight corregido)', code:
-`/*
- trafficlight corregido: dos semaforos de transito que se turnan.
- turnoA y turnoB son binarysem: no se comparan con ==,
- se usan con wait (esperar mi turno) y signal (darle el turno al otro).
-*/
-
-binarysem turnoA = 1;   /* A parte en verde */
-binarysem turnoB = 0;
-binarysem pantalla = 1;
-
-void semaforoA() {
-    int ciclo;
-    for (ciclo = 1; ciclo <= 3; ciclo++) {
-        wait(turnoA);
-        wait(pantalla);
-        cout << "[Semaforo A]: VERDE" << endl;
-        cout << "[Semaforo A]: AMARILLO" << endl;
-        cout << "[Semaforo A]: ROJO" << endl;
-        signal(pantalla);
-        signal(turnoB);          /* le pasa el turno a B */
-    }
-}
-
-void semaforoB() {
-    int ciclo;
-    for (ciclo = 1; ciclo <= 3; ciclo++) {
-        wait(turnoB);
-        wait(pantalla);
-        cout << "[Semaforo B]: VERDE" << endl;
-        cout << "[Semaforo B]: AMARILLO" << endl;
-        cout << "[Semaforo B]: ROJO" << endl;
-        signal(pantalla);
-        signal(turnoA);          /* le devuelve el turno a A */
-    }
-}
-
-void main() {
-    cobegin {
-        semaforoA();
-        semaforoB();
-    }
-    cout << "Fin: 3 ciclos de cada semaforo." << endl;
-}
-` },
-{ id: 'c1', file: 'contador-sin-proteccion.cm', name: 'Contador sin protección (condición de carrera)', code:
-`/*
- Dos procesos suman 1 a "cuenta" 20 veces cada uno, SIN semaforo.
- Deberia terminar en 40, pero a veces da menos:
- un proceso lee cuenta, lo interrumpen, el otro suma, y el primero
- guarda un valor viejo (se pierde una suma).
-*/
-
-int cuenta = 0;
-
-void sumar(int id) {
-    int i;
-    for (i = 1; i <= 20; i++) {
-        cuenta = cuenta + 1;
-    }
-}
-
-void main() {
-    cobegin {
-        sumar(1);
-        sumar(2);
-    }
-    cout << "cuenta = " << cuenta << " (deberia ser 40)" << endl;
-}
-` },
-{ id: 'c2', file: 'contador-con-mutex.cm', name: 'Contador con binarysem (siempre 40)', code:
-`/* Igual que el anterior, pero la suma queda protegida por un binarysem. */
-
-int cuenta = 0;
-binarysem mutex = 1;
-
-void sumar(int id) {
-    int i;
-    for (i = 1; i <= 20; i++) {
-        wait(mutex);
-        cuenta = cuenta + 1;
-        signal(mutex);
-    }
-}
-
-void main() {
-    cobegin {
-        sumar(1);
-        sumar(2);
-    }
-    cout << "cuenta = " << cuenta << " (deberia ser 40)" << endl;
-}
-` },
-{ id: 'm1', file: 'impresora-monitor.cm', name: 'Monitor · Impresora con monitor', code:
-`/*
- Impresora con MONITOR: el mismo problema del ejercicio 01,
- pero sin wait/signal. El monitor garantiza que solo un proceso
- a la vez ejecuta tomar() o soltar().
-
-   ocupada -> 1 si alguien esta imprimiendo
-   libre   -> condition donde esperan los que encuentran la impresora ocupada
-*/
-
-monitor Impresora {
-    int ocupada;
-    condition libre;
-
-    void tomar(int id) {
-        if (ocupada)
-            waitc(libre);          /* suelta el monitor y espera */
-        ocupada = 1;
-        cout << "Persona " << id << " toma la impresora." << endl;
-    }
-
-    void soltar(int id) {
-        ocupada = 0;
-        cout << "Persona " << id << " suelta la impresora." << endl;
-        signalc(libre);            /* despierta a uno (si hay alguien) */
-    }
-
-    init { ocupada = 0; }
-}
-
-void persona(int id) {
-    int hoja;
-    tomar(id);
-    for (hoja = 1; hoja <= 3; hoja++) {
-        cout << "Persona " << id << " imprimiendo hoja " << hoja << endl;
-    }
-    soltar(id);
-}
-
-void main() {
-    cobegin {
-        persona(1);
-        persona(2);
-        persona(3);
-    }
-    cout << "Todos los procesos han terminado." << endl;
-}
-` },
-{ id: 'm2', file: 'contador-mon.cm', name: 'Monitor · Contador (contador-mon.cm)', code:
-`/*
- contador-mon.cm : el mismo contador protegido por un MONITOR.
- Solo un proceso a la vez puede estar dentro de un procedimiento
- del monitor, asi que no hacen falta wait ni signal.
-*/
-monitor Contador {
-  int valor;
-
-  void incrementar(int id) {
-    int local;
-    local = valor;
-    valor = local + 1;
-    cout << "Proceso " << id << " -> contador = " << valor << endl;
-  }
-
-  int leer() {
-    return valor;
-  }
-
-  init { valor = 0; }
-}
-
-void proceso(int id) {
-  int i;
-  for (i = 1; i <= 3; i++)
-    incrementar(id);
-}
-
-void main() {
-  cobegin {
-    proceso(1); proceso(2);
-  }
-  cout << "Final: " << leer() << endl;
-}
-` },
-{ id: 'm3', file: 'p-c-mon.cm', name: 'Monitor · Productor-consumidor (p-c-mon.cm)', code:
-`monitor PC {
-	const int N = 5;
-	int Oldest;
-	int Newest;
-	int Count;
-	condition NotEmpty;
-	condition NotFull;
-	int Buffer[N];
-
-void Append(int V) {
-	if (Count == N) 
-		waitc(NotFull);
-	Buffer[Newest] = V;
-	Newest = (Newest + 1) % N;
-	Count = Count + 1;
-	signalc(NotEmpty);
-}
-
-int Take() {
-	int temp;
-	if (Count == 0) 
-		waitc(NotEmpty);
-	temp = Buffer[Oldest];
-	Oldest = (Oldest + 1) % N;
-	Count = Count - 1;
-	signalc(NotFull);
-	return temp;
-}
-
-init {
-	Count = 0; Oldest = 0; Newest = 0;
-}
-
-}
-
-const	int Values = 20;
-
-void Producer(int ID) {
-	int I;
-	for (I = 1; I < Values; I++) {
-		cout << "Producer " << ID << " producing " << ID*100+I << '\\n';
-		Append(ID*100+I);
-	}
-}
-
-void Consumer(int ID) {
-	int I, J;
-	for (I = 1; I < Values; I++) {
-		J = Take();
-		cout << "Consumer " << ID << " consuming " << J << '\\n';
-	}
-}
-
-void main() {
-	cobegin {
-		Producer(1); Consumer(1); //Consumer(2); Consumer(3);
-	}
-}` },
-{ id: 'm4', file: 'mon-sem.cm', name: 'Monitor · Semáforo hecho con monitor (mon-sem.cm)', code:
-`/* Monitor implementation of semaphore. */
-monitor monSemaphore {
-	int semvalue;
-	condition notbusy;
-
-	void monP() {
-	if (!semvalue)
-		waitc(notbusy);
-	else
-		semvalue--;
-		}
-		
-	void monV() {
-		if (empty(notbusy))
-			semvalue++;
-		else
-			signalc(notbusy);
-	}
-	
-	init{ semvalue = 1; } 
-} // end of monSemaphore monitor
-
-int n;
-
-void inc(int i) {
-  monP();
-  n = n + 1;
-  monV();
-}
-
-void main() {
-  cobegin {
-  inc(1); inc(2);
-  }
-}
-
-` },
-];
-
-/* ---------------- interfaz ---------------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const LF = BACI.LF;
+
+/* ---------------- almacenamiento ---------------- */
+const mem = {};
 const store = {
-  get(k) { try { return localStorage.getItem('minibaci.' + k); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem('minibaci.' + k, v); } catch (e) {} },
+  get(k) { try { const v = localStorage.getItem('minibaci.' + k); return v === null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } },
+  set(k, v) { mem[k] = v; try { localStorage.setItem('minibaci.' + k, v); } catch (e) {} },
 };
+let lib = {};
+try { lib = JSON.parse(store.get('lib') || '{}') || {}; } catch (e) { lib = {}; }
+const saveLib = () => store.set('lib', JSON.stringify(lib));
 
-const ed = $('#code'), gutter = $('#gutter');
-let curFile = 'programa.cm';
-let machine = null, srcLines = [], running = false, raf = 0, lastT = 0, acc = 0, segSteps = 0, dirty = true;
-let errLine = null, conCount = 0, conBase = -1;
-const AUTOPAUSE = 400000;
-const SPEEDS = { lento: { ms: 420 }, normal: { ms: 70 }, rapido: { per: 40 }, instant: { per: Infinity } };
+/* ---------------- archivos ---------------- */
+const ed = $('#code'), gutter = $('#gutter'), fileSel = $('#fileSel'), fileName = $('#fileName');
+let curName = null, curExample = null;   // curExample: id del ejemplo abierto sin modificar
+const normName = n => { n = (n || '').trim().replace(/[\\/]/g, '-') || 'programa'; return /\.(cm|txt)$/i.test(n) ? n : n + '.cm'; };
+function uniqueName(n) {
+  n = normName(n);
+  if (!(n in lib)) return n;
+  const m = /^(.*?)(?:-(\d+))?(\.\w+)$/.exec(n);
+  for (let i = 2; ; i++) { const c = `${m[1]}-${i}${m[3]}`; if (!(c in lib)) return c; }
+}
+function refreshFileSel() {
+  const mine = Object.keys(lib).sort((a, b) => a.localeCompare(b));
+  let h = '';
+  if (mine.length) h += `<optgroup label="Mis archivos">${mine.map(n => `<option value="f:${esc(n)}">${esc(n)}</option>`).join('')}</optgroup>`;
+  h += `<optgroup label="Ejemplos">${EJEMPLOS.map(x => `<option value="e:${x.id}">${esc(x.name)}</option>`).join('')}</optgroup>`;
+  fileSel.innerHTML = h;
+  fileSel.value = curExample ? 'e:' + curExample : 'f:' + curName;
+}
+function openFile(name) {
+  stop();
+  curName = name; curExample = null;
+  setEditor(lib[name]);
+  store.set('cur', 'f:' + name);
+  refreshFileSel(); afterOpen();
+}
+function openExample(id) {
+  const x = EJEMPLOS.find(x => x.id === id); if (!x) return;
+  stop();
+  curExample = id; curName = x.file;
+  setEditor(x.code);
+  store.set('cur', 'e:' + id);
+  refreshFileSel(); afterOpen();
+}
+function setEditor(code) {
+  ed.value = code; fileName.value = curName;
+  errLine = null; $('#errBox').hidden = true; updateGutter(); ed.scrollTop = 0;
+}
+function afterOpen() { if (compileAndBoot()) runPreview(); }
+fileSel.addEventListener('change', () => {
+  const v = fileSel.value;
+  if (v.startsWith('e:')) openExample(v.slice(2)); else openFile(v.slice(2));
+});
+// Al editar un ejemplo, se guarda como archivo propio.
+function persist() {
+  if (curExample) { curName = uniqueName(curName); curExample = null; fileName.value = curName; store.set('cur', 'f:' + curName); lib[curName] = ed.value; saveLib(); refreshFileSel(); return; }
+  lib[curName] = ed.value; saveLib();
+}
+fileName.addEventListener('change', () => {
+  const want = normName(fileName.value);
+  if (want === curName) { fileName.value = want; return; }
+  const nn = want in lib ? uniqueName(want) : want;
+  if (!curExample) delete lib[curName];
+  curExample = null; curName = nn; lib[nn] = ed.value; saveLib();
+  fileName.value = nn; store.set('cur', 'f:' + nn); refreshFileSel();
+});
+$('#newBtn').addEventListener('click', () => {
+  const n = uniqueName('programa.cm');
+  lib[n] = 'void main() {\n    \n}\n'; saveLib(); openFile(n);
+  ed.focus(); ed.setSelectionRange(18, 18);
+});
+$('#openBtn').addEventListener('click', () => $('#fileIn').click());
+$('#fileIn').addEventListener('change', e => {
+  const files = [...(e.target.files || [])]; if (!files.length) return;
+  let pending = files.length, last = null;
+  for (const f of files) {
+    const r = new FileReader();
+    r.onload = () => { const n = normName(f.name); lib[n] = String(r.result).replace(/\r\n?/g, '\n'); last = n; if (--pending === 0) { saveLib(); openFile(last); } };
+    r.readAsText(f, 'windows-1252');
+  }
+  e.target.value = '';
+});
+$('#saveBtn').addEventListener('click', () => {
+  try {
+    const blob = new Blob([ed.value.replace(/\n/g, '\r\n')], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = curName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } catch (e) {}
+});
+$('#copyBtn').addEventListener('click', () => {
+  const b = $('#copyBtn');
+  const done = ok => { b.textContent = ok ? 'Copiado' : 'Selecciona y copia'; setTimeout(() => (b.textContent = 'Copiar'), 1600); };
+  try { navigator.clipboard.writeText(ed.value).then(() => done(true), () => { ed.focus(); ed.select(); done(false); }); }
+  catch (e) { ed.focus(); ed.select(); done(false); }
+});
+let delTimer = 0;
+$('#delBtn').addEventListener('click', () => {
+  const b = $('#delBtn');
+  if (curExample) { b.textContent = 'Es un ejemplo'; setTimeout(() => (b.textContent = 'Quitar'), 1400); return; }
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = '¿Quitar? Toca otra vez';
+    clearTimeout(delTimer); delTimer = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Quitar'; }, 3000);
+    return;
+  }
+  clearTimeout(delTimer); b.classList.remove('armed'); b.textContent = 'Quitar';
+  delete lib[curName]; saveLib();
+  const rest = Object.keys(lib).sort();
+  if (rest.length) openFile(rest[0]); else openExample(EJEMPLOS[0].id);
+});
+function resolveInclude(name) {
+  for (const k of Object.keys(lib)) if (k.toLowerCase() === name) return lib[k];
+  if (BACI_INCLUDES[name] != null) return BACI_INCLUDES[name];
+  const x = EJEMPLOS.find(x => x.file.toLowerCase() === name);
+  return x ? x.code : null;
+}
 
+/* ---------------- editor ---------------- */
+let errLine = null;
 function updateGutter() {
   const n = ed.value.split('\n').length;
   let s = '';
@@ -1627,60 +450,16 @@ function updateGutter() {
   gutter.scrollTop = ed.scrollTop;
 }
 ed.addEventListener('scroll', () => { gutter.scrollTop = ed.scrollTop; });
-ed.addEventListener('input', () => { errLine = null; $('#errBox').hidden = true; updateGutter(); store.set('code', ed.value); });
+ed.addEventListener('input', () => { errLine = null; $('#errBox').hidden = true; updateGutter(); persist(); });
 ed.addEventListener('keydown', e => {
-  if (e.key === 'Tab' && !e.shiftKey) {
-    e.preventDefault();
-    const s = ed.selectionStart, t = ed.selectionEnd;
-    ed.setRangeText('    ', s, t, 'end');
-    ed.dispatchEvent(new Event('input'));
-  }
+  if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); ed.setRangeText('    ', ed.selectionStart, ed.selectionEnd, 'end'); ed.dispatchEvent(new Event('input')); }
 });
-
-function setCode(code, file) {
-  ed.value = code; curFile = file || 'programa.cm';
-  store.set('code', code); store.set('file', curFile);
-  errLine = null; $('#errBox').hidden = true; updateGutter();
-  ed.scrollTop = 0;
-}
-
-const exSel = $('#exSel');
-exSel.innerHTML = EJEMPLOS.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('') + '<option value="__mine">Mi programa (lo que está en el editor)</option>';
-exSel.addEventListener('change', () => {
-  const x = EJEMPLOS.find(x => x.id === exSel.value);
-  if (!x) return;
-  stop(); setCode(x.code, x.file); store.set('ex', x.id);
-  compileAndBoot(); runInstantPreview();
-});
-
-$('#openBtn').addEventListener('click', () => $('#fileIn').click());
-$('#fileIn').addEventListener('change', e => {
-  const f = e.target.files && e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => { stop(); setCode(String(r.result).replace(/\r\n/g, '\n'), f.name); exSel.value = '__mine'; store.set('ex', '__mine'); };
-  r.readAsText(f);
-  e.target.value = '';
-});
-$('#saveBtn').addEventListener('click', () => {
-  try {
-    const blob = new Blob([ed.value.replace(/\n/g, '\r\n')], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = curFile.endsWith('.cm') ? curFile : curFile + '.cm';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  } catch (e) {}
-});
-$('#copyBtn').addEventListener('click', () => {
-  const b = $('#copyBtn');
-  const done = ok => { b.textContent = ok ? 'Copiado' : 'Selecciona y copia'; setTimeout(() => (b.textContent = 'Copiar'), 1600); };
-  try {
-    navigator.clipboard.writeText(ed.value).then(() => done(true), () => { ed.focus(); ed.select(); done(false); });
-  } catch (e) { ed.focus(); ed.select(); done(false); }
-});
-
+let lastFiles = [];
+function where(l) { const f = Math.floor(l / LF), n = l % LF; return { file: f, n, text: f === 0 ? `la línea ${n}` : `la línea ${n} de ${lastFiles[f] || 'un #include'}` }; }
 function showError(e) {
-  errLine = e.line || null;
-  $('#errTitle').textContent = errLine ? `Error de compilación en la línea ${errLine}` : 'Error de compilación';
+  const w = e.line ? where(e.line) : null;
+  errLine = w && w.file === 0 ? w.n : null;
+  $('#errTitle').textContent = w ? `Error de compilación en ${w.text}` : 'Error de compilación';
   $('#errMsg').textContent = e.message;
   $('#errBox').hidden = false;
   $('#errGo').hidden = !errLine;
@@ -1698,33 +477,43 @@ function goLine(n) {
   ed.scrollTop = Math.max(0, (n - 4) * lh);
 }
 
+/* ---------------- ejecución ---------------- */
+let machine = null, prog = null, srcLines = [], running = false, raf = 0, lastT = 0, acc = 0, segSteps = 0, dirty = true, resumeAfterInput = false;
+let conCount = 0, conBase = -1, gfxDrawn = -1;
+const AUTOPAUSE = 400000;
+const SPEEDS = { lento: { ms: 420 }, normal: { ms: 70 }, rapido: { per: 40 }, instant: { per: Infinity } };
+const ENDED = ['done', 'error', 'deadlock'];
+
 function compileAndBoot() {
   const src = ed.value;
-  let prog;
-  try { prog = compileSource(src); }
-  catch (e) { machine = null; showError(e); renderAll(); return false; }
+  try { prog = BACI.compile(src, resolveInclude, curName); }
+  catch (e) { machine = null; prog = null; showError(e); dirty = true; renderAll(); updateButtons(); return false; }
+  lastFiles = prog.files;
   $('#errBox').hidden = true; errLine = null; updateGutter();
-  machine = new Machine(prog);
+  machine = new BACI.Machine(prog);
   srcLines = src.split('\n');
-  conCount = 0; conBase = -1; $('#console').textContent = '';
+  conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = '';
+  resumeAfterInput = false;
   try { machine.boot(); }
-  catch (e) { machine.status = 'error'; machine.error = { msg: e.message, line: e.line, proc: '(declaraciones globales)' }; }
+  catch (e) { machine.status = 'error'; machine.error = { msg: e.message, line: e.line, proc: 'las declaraciones globales' }; }
   segSteps = 0; dirty = true;
-  renderAll();
+  $('#stdinForm').hidden = !prog.uses.input;
+  $('#stdinForm').classList.remove('waiting');
+  $('#gfxCard').hidden = !prog.uses.gfx;
+  $('#lindaCard').hidden = !prog.uses.linda;
+  renderAll(); updateButtons();
   return true;
 }
-
-function runInstantPreview() {
-  if (!machine) return;
+function runPreview() {
+  if (!machine || prog.uses.input) return;     // los programas con cin esperan a que el usuario ejecute
   let n = 0;
   while (n < 20000 && machine.step()) n++;
-  if (machine.status === 'running') { machine.status = 'running'; }
-  dirty = true; renderAll();
+  dirty = true; renderAll(); updateButtons();
 }
-
 function stop() { running = false; cancelAnimationFrame(raf); updateButtons(); }
 function play() {
-  if (!machine || ['done', 'error', 'deadlock'].includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
+  if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
+  if (machine.status === 'input') { resumeAfterInput = true; focusInput(); dirty = true; renderAll(); return; }
   running = true; segSteps = 0; lastT = performance.now(); acc = 0;
   updateButtons();
   raf = requestAnimationFrame(loop);
@@ -1732,8 +521,10 @@ function play() {
 function doStep() {
   const ok = machine.step();
   segSteps++;
-  if (!ok) { running = false; }
-  else if (segSteps >= AUTOPAUSE) { running = false; machine.pausedLong = true; }
+  if (!ok) {
+    running = false;
+    if (machine.status === 'input') { resumeAfterInput = true; focusInput(); }
+  } else if (segSteps >= AUTOPAUSE) { running = false; machine.pausedLong = true; }
   dirty = true;
 }
 function loop(t) {
@@ -1750,49 +541,64 @@ function loop(t) {
   renderAll();
   if (running) raf = requestAnimationFrame(loop); else updateButtons();
 }
-
+function focusInput() { const f = $('#stdinForm'); f.hidden = false; f.classList.add('waiting'); try { $('#stdin').focus({ preventScroll: true }); } catch (e) {} }
+$('#stdinForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!machine || ENDED.includes(machine.status)) return;
+  const v = $('#stdin').value;
+  $('#stdin').value = '';
+  machine.provideInput(v);
+  $('#stdinForm').classList.remove('waiting');
+  dirty = true; renderAll();
+  if (resumeAfterInput) { resumeAfterInput = false; play(); }
+});
 $('#playBtn').addEventListener('click', () => { if (running) stop(); else { if (machine) machine.pausedLong = false; play(); } });
 $('#stepBtn').addEventListener('click', () => {
   stop();
-  if (!machine || ['done', 'error', 'deadlock'].includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
+  if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
+  if (machine.status === 'input') { focusInput(); return; }
   doStep(); renderAll(); updateButtons();
 });
-$('#resetBtn').addEventListener('click', () => { stop(); if (!compileAndBoot()) setTab('edit'); updateButtons(); });
+$('#resetBtn').addEventListener('click', () => { stop(); if (!compileAndBoot()) setTab('edit'); });
 $('#runFromEdit').addEventListener('click', () => { stop(); if (compileAndBoot()) { setTab('run'); play(); } });
 $('#speedSel').addEventListener('change', () => store.set('speed', $('#speedSel').value));
-$('#colorOut').addEventListener('change', () => { $('#console').classList.toggle('mono', !$('#colorOut').checked); conCount = 0; conBase = -1; dirty = true; renderAll(); });
+$('#colorOut').addEventListener('change', () => { conCount = 0; conBase = -1; dirty = true; renderAll(); });
 
 function updateButtons() {
   const pb = $('#playBtn');
   if (running) pb.textContent = 'Pausar';
   else if (!machine || machine.status === 'ready') pb.textContent = 'Ejecutar';
-  else if (['done', 'error', 'deadlock'].includes(machine.status)) pb.textContent = 'Ejecutar de nuevo';
+  else if (ENDED.includes(machine.status)) pb.textContent = 'Ejecutar de nuevo';
   else pb.textContent = 'Continuar';
 }
 
-/* --------- render --------- */
-const STATE_TXT = { ready: 'listo', blocked: 'bloqueado', cobegin: 'esperando hijos', done: 'terminado' };
+/* ---------------- dibujo ---------------- */
 function renderAll() {
   if (!dirty) return;
   dirty = false;
-  renderStatus(); renderSems(); renderMons(); renderProcs(); renderVars(); renderConsole(); renderCode();
+  renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode();
 }
+function lineTxt(l) { return machine ? machine.fmtLine(l) : ''; }
 function renderStatus() {
   const chip = $('#stChip'), msg = $('#stMsg');
   chip.className = 'chip'; msg.hidden = true; msg.className = 'msgline';
-  if (!machine) { chip.textContent = errLine ? 'Error de compilación' : 'Sin ejecutar'; if (errLine) chip.classList.add('bad'); $('#stSteps').textContent = ''; return; }
+  if (!machine) { const bad = !$('#errBox').hidden; chip.textContent = bad ? 'Error de compilación' : 'Sin ejecutar'; if (bad) chip.classList.add('bad'); $('#stSteps').textContent = ''; return; }
   const m = machine;
   $('#stSteps').textContent = `${m.steps.toLocaleString('es-CL')} pasos`;
   if (m.status === 'done') { chip.textContent = 'Terminado'; chip.classList.add('done'); }
   else if (m.status === 'error') {
     chip.textContent = 'Error'; chip.classList.add('bad');
     msg.hidden = false; msg.classList.add('bad');
-    msg.textContent = `Error en tiempo de ejecución${m.error.line ? ` (línea ${m.error.line})` : ''}, en ${m.error.proc}: ${m.error.msg}`;
+    msg.textContent = `Error en tiempo de ejecución${m.error.line ? ` (${lineTxt(m.error.line)})` : ''}, en ${m.error.proc}: ${m.error.msg}`;
   } else if (m.status === 'deadlock') {
     chip.textContent = 'Deadlock'; chip.classList.add('bad');
     const bl = m.procs.filter(p => p.state === 'blocked').map(p => `${p.name} (${blockTxt(p)})`);
     msg.hidden = false; msg.classList.add('bad');
     msg.textContent = `Todos los procesos que quedan están esperando y ninguno puede despertar a otro: ${bl.join(', ')}.`;
+  } else if (m.status === 'input') {
+    chip.textContent = 'Esperando un dato'; chip.classList.add('wait');
+    msg.hidden = false; msg.classList.add('wait');
+    msg.textContent = 'El programa espera un dato para cin: escríbelo bajo la consola y toca Enviar.';
   } else if (running) { chip.textContent = 'Ejecutando'; chip.classList.add('run'); }
   else if (m.status === 'ready') chip.textContent = 'Listo para ejecutar';
   else {
@@ -1806,32 +612,20 @@ function blockTxt(p) {
     case 'cond': return `waitc(${b.name}) en el monitor ${b.mon.name}`;
     case 'entry': return `esperando entrar al monitor ${b.name}`;
     case 'urgent': return `hizo signalc y espera volver al monitor ${b.name}`;
+    case 'linda': return `esperando la nota ${b.name}`;
+    case 'suspend': return 'suspendido (suspend)';
+    case 'input': return 'esperando un dato (cin)';
     default: return `wait(${b.name})`;
   }
 }
-function renderMons() {
-  const card = $('#monCard'), box = $('#mons');
-  if (!machine || !machine.monitors.size) { card.hidden = true; return; }
-  card.hidden = false;
-  $('#monCount').textContent = machine.monitors.size;
-  const q = (arr, empty) => arr.length ? arr.map(pchip).join('') : `<span>${empty}</span>`;
-  box.innerHTML = [...machine.monitors.values()].map(m => {
-    const conds = m.conds.length ? m.conds.map(c => `<div class="mrow"><span class="mk">condition <b>${esc(c.name)}</b></span><div class="queue">${c.queue.length ? c.queue.map(w => pchip(w.proc) + (w.prio !== 10 ? `<span class="prio">p${w.prio}</span>` : '')).join('') : '<span>nadie en waitc</span>'}</div></div>`).join('') : '';
-    return `<div class="mon"><div class="sem-top"><span class="lamp ${m.owner ? 'off' : 'on'}" title="${m.owner ? 'ocupado' : 'libre'}"></span><span class="sem-name">${esc(m.name)}</span></div>
-      <div class="mrow"><span class="mk">Dentro</span><div class="queue">${m.owner ? pchip(m.owner) : '<span>libre</span>'}</div></div>
-      <div class="mrow"><span class="mk">Esperan entrar</span><div class="queue">${q(m.entry, 'nadie')}</div></div>
-      ${m.urgent.length ? `<div class="mrow"><span class="mk">Cedieron con signalc</span><div class="queue">${q(m.urgent, '')}</div></div>` : ''}
-      ${conds}</div>`;
-  }).join('');
-}
 function pchip(p) { return `<span class="pc" data-c="${p.color}">${esc(p.name)}</span>`; }
 function renderSems() {
-  const box = $('#sems');
-  if (!machine || !machine.sems.length) { box.innerHTML = '<span class="empty">El programa no declara semáforos.</span>'; $('#semCount').textContent = ''; return; }
+  const card = $('#semCard');
+  if (!machine || !machine.sems.length) { card.hidden = true; return; }
+  card.hidden = false;
   $('#semCount').textContent = machine.sems.length;
-  box.innerHTML = machine.sems.map(s => {
-    const on = s.value > 0;
-    const max = Math.max(s.init, s.value);
+  $('#sems').innerHTML = machine.sems.map(s => {
+    const on = s.value > 0, max = Math.max(s.init, s.value);
     const pips = !s.binary && max > 0 && max <= 16 ? `<div class="pips" aria-hidden="true">${Array.from({ length: max }, (_, i) => `<i class="${i < s.value ? 'f' : ''}"></i>`).join('')}</div>` : '';
     const q = s.queue.length ? `Esperando: ${s.queue.map(pchip).join('')}` : 'Nadie esperando';
     const sub = s.binary ? (on ? 'libre' : 'ocupado') : `de ${s.init} al inicio`;
@@ -1840,6 +634,49 @@ function renderSems() {
       <div class="sem-val">${s.value}<small>${sub}</small></div>${pips}<div class="queue">${q}</div></div>`;
   }).join('');
 }
+function renderMons() {
+  const card = $('#monCard');
+  if (!machine || !machine.monitors.size) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#monCount').textContent = machine.monitors.size;
+  const q = (arr, empty) => arr.length ? arr.map(pchip).join('') : `<span>${empty}</span>`;
+  $('#mons').innerHTML = [...machine.monitors.values()].map(m => {
+    const conds = m.conds.map(c => `<div class="mrow"><span class="mk">condition <b>${esc(c.name)}</b></span><div class="queue">${c.queue.length ? c.queue.map(w => pchip(w.proc) + (w.prio !== 10 ? `<span class="prio">p${w.prio}</span>` : '')).join('') : '<span>nadie en waitc</span>'}</div></div>`).join('');
+    return `<div class="mon"><div class="sem-top"><span class="lamp ${m.owner ? 'off' : 'on'}" title="${m.owner ? 'ocupado' : 'libre'}"></span><span class="sem-name">${esc(m.name)}</span></div>
+      <div class="mrow"><span class="mk">Dentro</span><div class="queue">${m.owner ? pchip(m.owner) : '<span>libre</span>'}</div></div>
+      <div class="mrow"><span class="mk">Esperan entrar</span><div class="queue">${q(m.entry, 'nadie')}</div></div>
+      ${m.urgent.length ? `<div class="mrow"><span class="mk">Cedieron con signalc</span><div class="queue">${q(m.urgent, '')}</div></div>` : ''}
+      ${conds}</div>`;
+  }).join('');
+}
+function renderLinda() {
+  if (!machine || !prog || !prog.uses.linda) return;
+  const fv = v => (v === BACI.FLAG_INT ? '–' : v);
+  $('#lindaCount').textContent = `${machine.board.length} nota${machine.board.length === 1 ? '' : 's'}`;
+  $('#notes').innerHTML = machine.board.length
+    ? machine.board.map(n => `<span class="note">(<i>'${esc(String.fromCharCode(n.c))}'</i>, ${fv(n.a)}, ${fv(n.b)})</span>`).join('')
+    : '<span class="empty">La pizarra está vacía.</span>';
+  const w = machine.procs.filter(p => p.blockKind === 'linda');
+  $('#lindaWait').innerHTML = w.length ? 'Esperando una nota: ' + w.map(p => pchip(p) + `<span class="prio">${esc(p.blockedOn.name)}</span>`).join('') : '';
+}
+const GCOL = { 1: '#E53935', 2: '#1B1B1B', 3: '#1E63D6', 4: '#F4C20D', 5: '#2E9E44', 6: '#C2189B', 7: '#FFFFFF' };
+function renderGfx() {
+  if (!machine || !prog || !prog.uses.gfx || machine.gfxVer === gfxDrawn) return;
+  gfxDrawn = machine.gfxVer;
+  const cv = $('#gfx'), g = cv.getContext('2d');
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, 600, 450);
+  for (const f of machine.gfx.values()) {
+    if (!f.visible) continue;
+    const col = GCOL[f.color] || '#888888';
+    g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 2;
+    g.beginPath();
+    if (f.fig === 1) { g.arc(f.x + f.s1 / 2, f.y + f.s1 / 2, Math.abs(f.s1) / 2, 0, Math.PI * 2); g.fill(); }
+    else if (f.fig === 2) { g.moveTo(f.x, f.y); g.lineTo(f.s1, f.s2); g.stroke(); }
+    else if (f.fig === 3) { g.fillRect(f.x, f.y, f.s1, f.s2); }
+    else if (f.fig === 4) { g.moveTo(f.x, f.y); g.lineTo(f.x - f.s2 / 2, f.y + f.s1); g.lineTo(f.x + f.s2 / 2, f.y + f.s1); g.closePath(); g.fill(); }
+  }
+}
+const STATE_TXT = { ready: 'listo', blocked: 'bloqueado', cobegin: 'esperando hijos', done: 'terminado' };
 function renderProcs() {
   const box = $('#procs');
   if (!machine) { box.innerHTML = '<span class="empty">Presiona Ejecutar.</span>'; $('#procCount').textContent = ''; return; }
@@ -1849,25 +686,33 @@ function renderProcs() {
     let cls = p.state, txt = STATE_TXT[p.state] || p.state;
     if (p === machine.cur && p.state === 'ready' && machine.status === 'running') { cls = 'cur'; txt = 'ejecutando'; }
     if (p.state === 'cobegin') cls = 'cob';
+    if (p.blockKind === 'input') { cls = 'input'; txt = 'esperando dato'; }
+    else if (p.blockKind === 'suspend') txt = 'suspendido';
     let det = '';
-    if (p.state === 'blocked') det = `${esc(blockTxt(p))} · línea ${p.line}`;
+    if (p.state === 'blocked') det = `${esc(blockTxt(p))} · ${lineTxt(p.line)}`;
     else if (p.state === 'cobegin') det = `cobegin · faltan ${p.children}`;
-    else if (p.state !== 'done' && p.line) det = `línea ${p.line}`;
-    return `<div class="proc ${p.state === 'done' ? 'isdone' : ''}" data-c="${p.color}"><span class="swatch"></span><span class="pname">${esc(p.name)}</span><span class="pill ${cls}">${txt}</span>${det ? `<span class="pdet">${det}</span>` : ''}</div>`;
+    else if (p.state !== 'done' && p.line) det = lineTxt(p.line);
+    if (p.mon && p.state !== 'done') det += ` · dentro de ${esc(p.mon.name)}`;
+    return `<div class="proc ${p.state === 'done' ? 'isdone' : ''}" data-c="${p.color}"><span class="swatch"></span><span class="pname"><small>#${p.pid}</small>${esc(p.name)}</span><span class="pill ${cls}">${txt}</span>${det ? `<span class="pdet">${det}</span>` : ''}</div>`;
   }).join('');
 }
-function fmtCell(c) {
-  if (c.kind === 'arr') return '[' + c.arr.slice(0, 40).join(', ') + (c.arr.length > 40 ? ', …' : '') + ']';
-  if (c.type === 'char' && c.v >= 32 && c.v < 127) return `${c.v} ('${String.fromCharCode(c.v)}')`;
+function fmtCell(c, depth) {
+  depth = depth || 0;
+  if (c.kind === 'arr') { if (depth > 2) return '[…]'; const it = c.items.slice(0, 24).map(x => fmtCell(x, depth + 1)); return '[' + it.join(', ') + (c.items.length > 24 ? ', …' : '') + ']'; }
+  if (c.kind === 'str') return JSON.stringify(c.s);
+  if (c.kind === 'sem') return `${c.sem.value}`;
+  if (c.kind === 'cond') return 'condition';
+  if (c.type === 'char') return c.v >= 32 && c.v < 127 ? `'${String.fromCharCode(c.v)}'` : String(c.v);
   return String(c.v);
 }
+const isSyncCell = c => c.kind === 'sem' || c.kind === 'cond' || (c.kind === 'arr' && ['semaphore', 'binarysem', 'condition'].includes(c.type));
 function renderVars() {
   const box = $('#vars');
   if (!machine) { box.innerHTML = ''; return; }
   const rows = [];
-  for (const [name, c] of machine.globals) if (c.kind !== 'sem') rows.push(`<dt>${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
+  for (const [name, c] of machine.globals) if (!isSyncCell(c)) rows.push(`<dt>${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
   for (const m of machine.monitors.values())
-    for (const [name, c] of m.scope.vars) if (c.kind !== 'sem' && c.kind !== 'cond') rows.push(`<dt>${esc(m.name)}.${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
+    for (const [name, c] of m.scope.vars) if (!isSyncCell(c)) rows.push(`<dt>${esc(m.name)}.${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
   box.innerHTML = rows.length ? rows.join('') : '<dt class="empty">Sin variables globales</dt><dd></dd>';
 }
 function renderConsole() {
@@ -1875,7 +720,7 @@ function renderConsole() {
   if (!machine) { con.textContent = ''; conCount = 0; return; }
   const segs = machine.out, colored = $('#colorOut').checked;
   const nearBottom = con.scrollHeight - con.scrollTop - con.clientHeight < 40;
-  if (conBase !== machine.outBase) { con.textContent = ''; conCount = 0; conBase = machine.outBase; }
+  if (conBase !== machine.outBase || conCount === 0) { con.textContent = ''; conCount = 0; conBase = machine.outBase; }
   if (conCount > 0 && con.lastChild) con.lastChild.textContent = segs[conCount - 1].text;
   for (let i = conCount; i < segs.length; i++) {
     const s = segs[i], el = document.createElement('span');
@@ -1884,36 +729,26 @@ function renderConsole() {
     con.appendChild(el);
   }
   conCount = segs.length;
-  if (machine.status === 'error' && !machine.errShown) {
-    machine.errShown = true;
-    const el = document.createElement('span'); el.className = 'seg err';
-    el.textContent = `\nError${machine.error.line ? ` en la línea ${machine.error.line}` : ''}: ${machine.error.msg}\n`;
-    con.appendChild(el);
-    machine.out.push({ pid: -9, color: 0, text: el.textContent, cls: 'err' }); conCount = machine.out.length;
-  }
-  if (machine.status === 'deadlock' && !machine.dlShown) {
-    machine.dlShown = true;
-    machine.out.push({ pid: -9, color: 0, text: '\n*** Deadlock: todos los procesos están bloqueados ***\n', cls: 'err' });
-    const el = document.createElement('span'); el.className = 'seg err'; el.textContent = machine.out[machine.out.length - 1].text; con.appendChild(el); conCount = machine.out.length;
-  }
+  const tail = txt => { machine.out.push({ pid: -9, color: 0, text: txt, cls: 'err' }); const el = document.createElement('span'); el.className = 'seg err'; el.textContent = txt; con.appendChild(el); conCount = machine.out.length; };
+  if (machine.status === 'error' && !machine.errShown) { machine.errShown = true; tail(`\nError${machine.error.line ? ` en ${lineTxt(machine.error.line)}` : ''}: ${machine.error.msg}\n`); }
+  if (machine.status === 'deadlock' && !machine.dlShown) { machine.dlShown = true; tail('\n*** Deadlock: todos los procesos están bloqueados ***\n'); }
   if (nearBottom || running) con.scrollTop = con.scrollHeight;
 }
 function renderCode() {
   const box = $('#codeview');
   if (!machine) { box.innerHTML = ''; return; }
   const marks = {};
-  for (const p of machine.procs) if (p.state !== 'done' && p.line) (marks[p.line] = marks[p.line] || []).push(p);
-  const eLine = machine.status === 'error' ? machine.error.line : null;
-  let html = '', firstHot = null;
+  for (const p of machine.procs) if (p.state !== 'done' && p.line && p.line < LF) (marks[p.line] = marks[p.line] || []).push(p);
+  const eLine = machine.status === 'error' && machine.error.line < LF ? machine.error.line : null;
+  let html = '';
   srcLines.forEach((ln, i) => {
     const n = i + 1, m = marks[n];
-    if (m && firstHot === null) firstHot = n;
     html += `<div class="cl${m ? ' hot' : ''}${n === eLine ? ' errl' : ''}"><span class="n">${n}</span><span class="m">${m ? m.slice(0, 6).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="t">${esc(ln) || ' '}</span></div>`;
   });
   box.innerHTML = html;
 }
 
-/* --------- pestañas --------- */
+/* ---------------- pestañas ---------------- */
 function setTab(t) {
   const edit = t === 'edit';
   $('#paneEdit').classList.toggle('active', edit); $('#paneRun').classList.toggle('active', !edit);
@@ -1924,7 +759,7 @@ function setTab(t) {
 $('#tabEdit').addEventListener('click', () => setTab('edit'));
 $('#tabRun').addEventListener('click', () => setTab('run'));
 
-/* --------- instalación (PWA) --------- */
+/* ---------------- instalación (PWA, Android) ---------------- */
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('#installBtn').hidden = false; });
 $('#installBtn').addEventListener('click', async () => {
@@ -1933,23 +768,20 @@ $('#installBtn').addEventListener('click', async () => {
   try { await deferredPrompt.userChoice; } catch (e) {}
   deferredPrompt = null; $('#installBtn').hidden = true;
 });
-try {
-  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
-} catch (e) {}
+try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {}
 
-/* --------- inicio --------- */
+/* ---------------- inicio ---------------- */
 (function init() {
-  // Dentro de un marco (vista previa) el navegador no permite descargar: ocultamos Guardar.
   let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
-  if (framed) $('#saveBtn').hidden = true;
+  if (framed) $('#saveBtn').hidden = true;   // en una vista previa el navegador no deja descargar
   const sp = store.get('speed'); if (sp && SPEEDS[sp]) $('#speedSel').value = sp;
-  const savedEx = store.get('ex'), savedCode = store.get('code');
-  const ex = EJEMPLOS.find(x => x.id === savedEx);
-  if (savedCode && (savedEx === '__mine' || (ex && savedCode !== ex.code))) { setCode(savedCode, store.get('file') || 'programa.cm'); exSel.value = '__mine'; }
-  else { const x = ex || EJEMPLOS[0]; setCode(x.code, x.file); exSel.value = x.id; }
-  if (compileAndBoot()) runInstantPreview();
+  // migración: el código propio de la versión anterior pasa a "Mis archivos"
+  const oldCode = store.get('code');
+  if (oldCode && !Object.keys(lib).length && store.get('ex') === '__mine') { lib[normName(store.get('file') || 'programa.cm')] = oldCode; saveLib(); }
+  const cur = store.get('cur') || '';
+  if (cur.startsWith('f:') && cur.slice(2) in lib) openFile(cur.slice(2));
+  else if (cur.startsWith('e:') && EJEMPLOS.some(x => x.id === cur.slice(2))) openExample(cur.slice(2));
+  else { const mine = Object.keys(lib).sort(); if (mine.length) openFile(mine[0]); else openExample(EJEMPLOS[0].id); }
   if (store.get('tab') === 'run') setTab('run');
   updateButtons();
 })();
