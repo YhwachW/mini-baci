@@ -118,6 +118,12 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 .pips { display: flex; gap: 3px; flex-wrap: wrap; }
 .pips i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--go); }
 .pips i.f { background: var(--go); }
+.mons { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.mon { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; background: var(--sunk); min-width: 0; }
+.mrow { display: grid; gap: 3px; }
+.mk { font-size: 11.5px; color: var(--muted); }
+.mk b { font-family: var(--f-mono); color: var(--ink); font-weight: 600; }
+.prio { font: 500 10.5px var(--f-mono); color: var(--muted); margin-left: -2px; }
 .queue { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
 
 .pc { display: inline-flex; align-items: center; gap: 5px; font: 500 12px/1.2 var(--f-mono); padding: 2px 7px 2px 5px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
@@ -207,7 +213,7 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
       <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Programa C--"></textarea>
     </div>
     <button id="runFromEdit" class="btn primary big" type="button">Compilar y ejecutar</button>
-    <p class="note">Entiende <code>int</code>, <code>char</code>, <code>const</code>, arreglos, <code>if</code>, <code>while</code>, <code>for</code>, <code>do</code>, funciones, <code>cout</code>, <code>cobegin</code>, <code>semaphore</code>, <code>binarysem</code>, <code>wait</code>, <code>signal</code>, <code>atomic</code> y <code>random(n)</code>. Igual que jBACI, el orden entre procesos es aleatorio: cada ejecución puede salir distinta. Los monitores y Linda no están incluidos.</p>
+    <p class="note">Entiende <code>int</code>, <code>char</code>, <code>const</code>, arreglos, <code>if</code>, <code>while</code>, <code>for</code>, <code>do</code>, funciones, <code>cout</code>, <code>cobegin</code>, <code>semaphore</code>, <code>binarysem</code>, <code>wait</code>, <code>signal</code>, <code>atomic</code>, <code>random(n)</code> y monitores (<code>monitor</code>, <code>condition</code>, <code>waitc</code>, <code>signalc</code>, <code>empty</code>, <code>init</code>). Igual que jBACI, el orden entre procesos es aleatorio: cada ejecución puede salir distinta. Linda no está incluido.</p>
   </section>
 
   <section id="paneRun" class="pane" aria-label="Ejecución">
@@ -236,6 +242,10 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
         <div class="card-h"><span class="label">Semáforos</span><span id="semCount" class="label"></span></div>
         <div id="sems" class="sems"><span class="empty">El programa no declara semáforos.</span></div>
       </div>
+      <div id="monCard" class="card span2" hidden>
+        <div class="card-h"><span class="label">Monitores</span><span id="monCount" class="label"></span></div>
+        <div id="mons" class="mons"></div>
+      </div>
       <div class="card">
         <div class="card-h"><span class="label">Procesos</span><span id="procCount" class="label"></span></div>
         <div id="procs" class="procs"><span class="empty">Presiona Ejecutar.</span></div>
@@ -259,7 +269,7 @@ select.sel { border: 1px solid var(--line); background: var(--surface); border-r
 
 <script>
 // ==INTERP START==
-const KW = new Set(['int','void','char','bool','const','semaphore','binarysem','if','else','while','for','do','return','cobegin','cout','endl','break','continue','atomic','true','false']);
+const KW = new Set(['int','void','char','bool','const','semaphore','binarysem','if','else','while','for','do','return','cobegin','cout','endl','break','continue','atomic','true','false','monitor','condition']);
 class BaciError extends Error { constructor(msg, line) { super(msg); this.line = line; } }
 const bErr = (m, l) => new BaciError(m, l);
 
@@ -295,7 +305,7 @@ function lex(src) {
       if (ch === '\\') { const e = src[j+1]; ch = e === 'n' ? '\n' : e === 't' ? '\t' : e; j++; }
       j++;
       if (src[j] !== "'" || ch === undefined) throw bErr("Carácter mal escrito: debe ser como 'a'", line);
-      toks.push({ t: 'num', v: ch.charCodeAt(0), line }); i = j + 1; continue;
+      toks.push({ t: 'num', v: ch.charCodeAt(0), line, isChar: true }); i = j + 1; continue;
     }
     const two = src.substr(i, 2);
     if (ops2.includes(two)) { toks.push({ t: two, line }); i += 2; continue; }
@@ -317,7 +327,7 @@ function parse(toks) {
     const ln = (t === ';' || t === ')' || t === ']') && p > 0 ? toks[p-1].line : toks[p].line;
     throw bErr(`Se esperaba ${what || `'${t}'`} y se encontró ${desc(toks[p])}`, ln);
   };
-  const TYPES = new Set(['int','void','char','bool','semaphore','binarysem']);
+  const TYPES = new Set(['int','void','char','bool','semaphore','binarysem','condition']);
   const isType = () => TYPES.has(toks[p].t);
   const isL = e => e.k === 'var' || e.k === 'idx';
 
@@ -351,7 +361,7 @@ function parse(toks) {
     switch (tk.t) {
       case '{': return parseBlock();
       case ';': next(); return { k: 'empty', line: tk.line };
-      case 'const': case 'int': case 'char': case 'bool': case 'semaphore': case 'binarysem': case 'void': {
+      case 'const': case 'int': case 'char': case 'bool': case 'semaphore': case 'binarysem': case 'void': case 'condition': {
         const c = !!accept('const'); const type = next().t;
         const decls = parseDeclList(type, c); expect(';');
         return { k: 'decls', decls, line: tk.line };
@@ -446,7 +456,7 @@ function parse(toks) {
   function parsePrimary() {
     const tk = next();
     switch (tk.t) {
-      case 'num': return { k: 'num', v: tk.v, line: tk.line };
+      case 'num': return { k: 'num', v: tk.v, line: tk.line, isChar: !!tk.isChar };
       case 'true': return { k: 'num', v: 1, line: tk.line };
       case 'false': return { k: 'num', v: 0, line: tk.line };
       case 'str': return { k: 'str', v: tk.v, line: tk.line };
@@ -470,13 +480,40 @@ function parse(toks) {
   const parseAnd = binary(parseEq, ['&&']);
   const parseOr = binary(parseAnd, ['||']);
 
-  const prog = { globals: [], funcs: new Map() };
+  const prog = { globals: [], funcs: new Map(), monitors: [] };
+  function parseMonitor() {
+    const kw = next();
+    const name = expect('id', 'el nombre del monitor');
+    if (prog.monitors.some(m => m.name === name.v)) throw bErr(`El monitor '${name.v}' ya estaba definido`, name.line);
+    const mon = { k: 'monitor', name: name.v, decls: [], init: null, line: kw.line };
+    const open = expect('{');
+    while (!at('}')) {
+      if (at('eof')) throw bErr(`Falta cerrar con '}' el monitor '${name.v}' (se abrió en la línea ${open.line})`, open.line);
+      if (at('monitor')) throw bErr('No se puede definir un monitor dentro de otro', toks[p].line);
+      if (toks[p].t === 'id' && toks[p].v === 'init' && toks[p+1].t === '{') {
+        const it = next();
+        if (mon.init) throw bErr(`El monitor '${name.v}' ya tiene un bloque init`, it.line);
+        mon.init = parseBlock();
+        continue;
+      }
+      parseTopItem(mon.decls, mon.name);
+    }
+    next();
+    accept(';');
+    prog.globals.push(mon);
+    prog.monitors.push(mon);
+  }
   while (!at('eof')) {
+    if (at('monitor')) { parseMonitor(); continue; }
+    parseTopItem(prog.globals, null);
+  }
+  function parseTopItem(declTarget, monName) {
     let isConst = !!accept('const');
     const atomic = !!accept('atomic');
     if (!isConst && accept('const')) isConst = true;
-    if (!isType()) throw bErr(`Se esperaba una declaración (int, void, semaphore, binarysem...) y se encontró ${desc(toks[p])}`, toks[p].line);
+    if (!isType()) throw bErr(`Se esperaba una declaración (int, void, semaphore, binarysem${monName ? ', condition' : ', monitor'}...) y se encontró ${desc(toks[p])}`, toks[p].line);
     const type = next().t;
+    if (type === 'condition' && !monName) throw bErr('Una variable condition solo puede declararse dentro de un monitor', toks[p-1].line);
     const name = expect('id', 'un nombre');
     if (at('(')) {
       next();
@@ -495,11 +532,12 @@ function parse(toks) {
       }
       expect(')');
       if (prog.funcs.has(name.v)) throw bErr(`La función '${name.v}' ya estaba definida`, name.line);
+      if (monName && name.v === 'main') throw bErr('main() no puede ir dentro de un monitor', name.line);
       const body = parseBlock();
-      prog.funcs.set(name.v, { name: name.v, type, params, body, atomic, line: name.line });
+      prog.funcs.set(name.v, { name: name.v, type, params, body, atomic, line: name.line, monitor: monName });
     } else {
       p--;
-      prog.globals.push(...parseDeclList(type, isConst));
+      declTarget.push(...parseDeclList(type, isConst));
       expect(';');
     }
   }
@@ -507,8 +545,10 @@ function parse(toks) {
   return prog;
 }
 
-const BUILTINS = { wait: 1, signal: 1, p: 1, v: 1, P: 1, V: 1, initialsem: 2, random: 1 };
+const BUILTINS = { wait: [1], signal: [1], p: [1], v: [1], P: [1], V: [1], initialsem: [2], random: [1], waitc: [1, 2], signalc: [1], empty: [1] };
+const MON_ONLY = new Set(['waitc', 'signalc', 'empty']);
 function check(prog) {
+  let ctx = null;   // monitor de la función que se está revisando
   const visit = n => {
     if (!n || typeof n !== 'object') return;
     if (Array.isArray(n)) { n.forEach(visit); return; }
@@ -518,12 +558,16 @@ function check(prog) {
         if (fn.params.length !== n.args.length) throw bErr(`${n.name}() recibe ${fn.params.length} argumento(s) y aquí se le pasan ${n.args.length}`, n.line);
         if (n.name === 'main') throw bErr('main() no se puede llamar desde el programa', n.line);
       } else if (n.name in BUILTINS) {
-        if (BUILTINS[n.name] !== n.args.length) throw bErr(`${n.name}() recibe ${BUILTINS[n.name]} argumento(s)`, n.line);
+        const ok = BUILTINS[n.name];
+        if (!ok.includes(n.args.length)) throw bErr(`${n.name}() recibe ${ok.join(' o ')} argumento(s)`, n.line);
+        if (MON_ONLY.has(n.name) && !ctx) throw bErr(`${n.name}() solo se puede usar dentro de un procedimiento de un monitor`, n.line);
       } else throw bErr(`La función '${n.name}' no existe`, n.line);
     }
+    if (n.k === 'monitor') { const prev = ctx; ctx = n.name; visit(n.decls); visit(n.init); ctx = prev; return; }
     for (const k in n) if (k !== 'line') visit(n[k]);
   };
-  for (const f of prog.funcs.values()) visit(f.body);
+  for (const f of prog.funcs.values()) { ctx = f.monitor || null; visit(f.body); }
+  ctx = null;
   visit(prog.globals);
   const main = prog.funcs.get('main');
   if (main.params.length) throw bErr('main() no debe recibir parámetros', main.line);
@@ -536,11 +580,26 @@ class Machine {
     this.prog = prog; this.rnd = rnd || Math.random;
     this.globals = new Map(); this.globalScope = { vars: this.globals, parent: null };
     this.procs = []; this.sems = []; this.out = []; this.outBase = 0;
+    this.monitors = new Map(); this.seq = 0;
     this.steps = 0; this.status = 'ready'; this.error = null; this.cur = null; this.quantum = 0; this.main = null;
   }
   boot() {
-    const dummy = { pid: -1, name: '(global)', depth: 0, atomic: 0 };
-    for (const d of this.prog.globals) this.runSync(this.declare(d, this.globalScope, dummy));
+    const dummy = { pid: -1, name: '(global)', depth: 0, atomic: 0, mon: null };
+    for (const d of this.prog.globals) {
+      if (d.k === 'monitor') {
+        const mon = { name: d.name, owner: null, entry: [], urgent: [], conds: [], scope: { vars: new Map(), parent: null }, init: d.init };
+        this.monitors.set(d.name, mon);
+        const md = { pid: -1, name: `(monitor ${d.name})`, depth: 0, atomic: 0, mon };
+        for (const x of d.decls) this.runSync(this.declare(x, mon.scope, md, mon));
+      } else this.runSync(this.declare(d, this.globalScope, dummy));
+    }
+    // los bloques init de los monitores corren antes que main
+    for (const mon of this.monitors.values()) {
+      if (!mon.init) continue;
+      const md = { pid: -1, name: `init de ${mon.name}`, depth: 0, atomic: 0, mon, state: 'ready' };
+      const g = this.execBlock(mon.init, md, mon.scope);
+      let r; do { r = g.next(); if (!r.done && md.state !== 'ready') throw bErr(`El init del monitor '${mon.name}' no puede quedarse esperando`, mon.init.line); } while (!r.done);
+    }
     const main = this.newProc('main', null);
     main.gen = this.callFunc(this.prog.funcs.get('main'), [], main);
     this.main = main;
@@ -548,7 +607,7 @@ class Machine {
   runSync(g) { let r; do { r = g.next(); } while (!r.done); return r.value; }
   newProc(name, parent) {
     const pid = this.procs.length;
-    const p = { pid, name, parent, state: 'ready', line: null, gen: null, blockedOn: null, children: 0, spawning: false, depth: 0, atomic: 0, color: pid === 0 ? 0 : ((pid - 1) % 8) + 1 };
+    const p = { pid, name, parent, state: 'ready', line: null, gen: null, blockedOn: null, children: 0, spawning: false, depth: 0, atomic: 0, mon: null, color: pid === 0 ? 0 : ((pid - 1) % 8) + 1 };
     this.procs.push(p);
     return p;
   }
@@ -586,8 +645,16 @@ class Machine {
     }
     throw bErr(`Operador desconocido ${op}`, line);
   }
-  *declare(d, scope, proc) {
+  *declare(d, scope, proc, mon) {
     if (scope.vars.has(d.name)) throw bErr(`'${d.name}' ya fue declarada antes`, d.line);
+    if (d.type === 'condition') {
+      if (!mon) throw bErr('Una variable condition solo puede declararse en la parte de variables de un monitor', d.line);
+      if (d.size || d.init) throw bErr('Una condition se declara sola: condition nombre;', d.line);
+      const cond = { name: d.name, mon, queue: [] };
+      mon.conds.push(cond);
+      scope.vars.set(d.name, { kind: 'cond', cond });
+      return;
+    }
     if (d.type === 'semaphore' || d.type === 'binarysem') {
       let v = 0;
       if (d.init) v = yield* this.ev(d.init, proc, scope);
@@ -614,6 +681,7 @@ class Machine {
     if (e.k === 'var') {
       const c = this.lookup(e.name, scope, e.line);
       if (c.kind === 'sem') throw bErr(`'${e.name}' es un semáforo: no se le asigna un valor con =. Usa wait(${e.name}) y signal(${e.name})`, e.line);
+      if (c.kind === 'cond') throw bErr(`'${e.name}' es una condition: no se le asigna un valor. Usa waitc(${e.name}) y signalc(${e.name})`, e.line);
       if (c.kind === 'arr') throw bErr(`'${e.name}' es un arreglo: usa ${e.name}[i]`, e.line);
       if (c.isConst) throw bErr(`'${e.name}' es constante y no se puede cambiar`, e.line);
       return c;
@@ -631,6 +699,7 @@ class Machine {
       case 'var': {
         const c = this.lookup(e.name, scope, e.line);
         if (c.kind === 'sem') throw bErr(`'${e.name}' es un semáforo: no se puede leer ni comparar como un número. Usa wait(${e.name}) y signal(${e.name})`, e.line);
+        if (c.kind === 'cond') throw bErr(`'${e.name}' es una condition: no tiene valor. Para saber si hay alguien esperando usa empty(${e.name})`, e.line);
         if (c.kind === 'arr') throw bErr(`'${e.name}' es un arreglo: usa ${e.name}[i]`, e.line);
         return c.v;
       }
@@ -708,6 +777,15 @@ class Machine {
           if (n <= 0) throw bErr('random(n) necesita un n mayor que 0', e.line);
           return Math.floor(this.rnd() * n);
         }
+        case 'waitc': {
+          const c = this.condOf(e.args[0], e.name, scope, proc, e.line);
+          let prio = 10;
+          if (e.args.length > 1) prio = yield* this.ev(e.args[1], proc, scope);
+          yield* this.condWait(c, prio, proc, e.line);
+          return 0;
+        }
+        case 'signalc': { const c = this.condOf(e.args[0], e.name, scope, proc, e.line); yield* this.condSignal(c, proc, e.line); return 0; }
+        case 'empty': { const c = this.condOf(e.args[0], e.name, scope, proc, e.line); return c.queue.length ? 0 : 1; }
       }
       throw bErr(`La función '${e.name}' no existe`, e.line);
     }
@@ -715,13 +793,18 @@ class Machine {
     return yield* this.callFunc(fn, cells, proc);
   }
   *callFunc(fn, cells, proc) {
-    const scope = { vars: new Map(), parent: null };
+    const mon = fn.monitor ? this.monitors.get(fn.monitor) : null;
+    const scope = { vars: new Map(), parent: mon ? mon.scope : null };
     fn.params.forEach((pa, i) => scope.vars.set(pa.name, cells[i]));
     proc.depth++;
     if (proc.depth > 300) throw bErr(`Demasiadas llamadas anidadas a ${fn.name}() (¿recursión infinita?)`, fn.line);
+    const outer = proc.mon;
+    const enters = mon && outer !== mon;   // si ya está dentro del mismo monitor, no vuelve a entrar
+    if (enters) { yield* this.monEnter(mon, proc, fn.line); proc.mon = mon; }
     if (fn.atomic) proc.atomic++;
     const r = yield* this.execBlock(fn.body, proc, scope);
     if (fn.atomic) proc.atomic--;
+    if (enters) { proc.mon = outer; this.monRelease(mon); }
     proc.depth--;
     if (r && (r.brk || r.cont)) throw bErr('break o continue fuera de un ciclo', fn.line);
     return r && r.ret ? r.value : 0;
@@ -729,14 +812,55 @@ class Machine {
   *semWait(s, proc, line) {
     if (s.value > 0) { s.value--; return; }
     s.queue.push(proc);
-    proc.state = 'blocked'; proc.blockedOn = s;
+    proc.state = 'blocked'; proc.blockedOn = s; proc.blockKind = 'sem';
+    yield { line };
+  }
+  /* ---- monitores (semántica de Hoare, como BACI) ---- */
+  condOf(arg, fname, scope, proc, line) {
+    if (!arg || arg.k !== 'var') throw bErr(`${fname}() necesita el nombre de una condition`, line);
+    const c = this.lookup(arg.name, scope, line);
+    if (c.kind !== 'cond') throw bErr(`'${arg.name}' no es una condition del monitor`, line);
+    if (proc.mon !== c.cond.mon) throw bErr(`${fname}(${arg.name}) solo se puede usar dentro de un procedimiento del monitor '${c.cond.mon.name}'`, line);
+    return c.cond;
+  }
+  wake(q) { q.state = 'ready'; q.blockedOn = null; q.blockKind = null; }
+  *monEnter(mon, proc, line) {
+    if (!mon.owner) { mon.owner = proc; return; }
+    mon.entry.push(proc);
+    proc.state = 'blocked'; proc.blockedOn = mon; proc.blockKind = 'entry';
+    yield { line };                      // al despertar, ya es dueño del monitor
+  }
+  monRelease(mon) {
+    // primero los que hicieron signalc y cedieron el monitor; después los que esperan entrar
+    if (mon.urgent.length) { const q = mon.urgent.pop(); mon.owner = q; this.wake(q); return; }
+    if (mon.entry.length) { const i = Math.floor(this.rnd() * mon.entry.length); const q = mon.entry.splice(i, 1)[0]; mon.owner = q; this.wake(q); return; }
+    mon.owner = null;
+  }
+  *condWait(c, prio, proc, line) {
+    c.queue.push({ proc, prio, seq: this.seq++ });
+    proc.state = 'blocked'; proc.blockedOn = c; proc.blockKind = 'cond';
+    this.monRelease(c.mon);
+    yield { line };                      // al despertar, signalc ya le pasó el monitor
+  }
+  *condSignal(c, proc, line) {
+    if (!c.queue.length) return;         // sin nadie esperando, signalc no hace nada
+    let best = 0;
+    for (let i = 1; i < c.queue.length; i++) {
+      const a = c.queue[i], b = c.queue[best];
+      if (a.prio < b.prio || (a.prio === b.prio && a.seq < b.seq)) best = i;
+    }
+    const w = c.queue.splice(best, 1)[0].proc;
+    const mon = c.mon;
+    mon.owner = w; this.wake(w);         // el despertado entra de inmediato
+    mon.urgent.push(proc);               // y el que hizo signalc espera a que se lo devuelvan
+    proc.state = 'blocked'; proc.blockedOn = mon; proc.blockKind = 'urgent';
     yield { line };
   }
   semSignal(s, proc, line) {
     if (s.queue.length) {
       const i = Math.floor(this.rnd() * s.queue.length);
       const q = s.queue.splice(i, 1)[0];
-      q.state = 'ready'; q.blockedOn = null;
+      this.wake(q);
       return;
     }
     if (s.binary && s.value >= 1) { this.note(`[aviso] línea ${line}: signal(${s.name}) con el binarysem ya en 1; se queda en 1.\n`, 'warn'); return; }
@@ -778,6 +902,7 @@ class Machine {
           first = false;
           if (it.endl) this.write(proc, '\n');
           else if (it.e.k === 'str') this.write(proc, it.e.v);
+          else if (it.e.k === 'num' && it.e.isChar) this.write(proc, String.fromCharCode(it.e.v));
           else {
             const v = yield* this.ev(it.e, proc, scope);
             let isChar = false;
@@ -1296,6 +1421,187 @@ void main() {
     cout << "cuenta = " << cuenta << " (deberia ser 40)" << endl;
 }
 ` },
+{ id: 'm1', file: 'impresora-monitor.cm', name: 'Monitor · Impresora con monitor', code:
+`/*
+ Impresora con MONITOR: el mismo problema del ejercicio 01,
+ pero sin wait/signal. El monitor garantiza que solo un proceso
+ a la vez ejecuta tomar() o soltar().
+
+   ocupada -> 1 si alguien esta imprimiendo
+   libre   -> condition donde esperan los que encuentran la impresora ocupada
+*/
+
+monitor Impresora {
+    int ocupada;
+    condition libre;
+
+    void tomar(int id) {
+        if (ocupada)
+            waitc(libre);          /* suelta el monitor y espera */
+        ocupada = 1;
+        cout << "Persona " << id << " toma la impresora." << endl;
+    }
+
+    void soltar(int id) {
+        ocupada = 0;
+        cout << "Persona " << id << " suelta la impresora." << endl;
+        signalc(libre);            /* despierta a uno (si hay alguien) */
+    }
+
+    init { ocupada = 0; }
+}
+
+void persona(int id) {
+    int hoja;
+    tomar(id);
+    for (hoja = 1; hoja <= 3; hoja++) {
+        cout << "Persona " << id << " imprimiendo hoja " << hoja << endl;
+    }
+    soltar(id);
+}
+
+void main() {
+    cobegin {
+        persona(1);
+        persona(2);
+        persona(3);
+    }
+    cout << "Todos los procesos han terminado." << endl;
+}
+` },
+{ id: 'm2', file: 'contador-mon.cm', name: 'Monitor · Contador (contador-mon.cm)', code:
+`/*
+ contador-mon.cm : el mismo contador protegido por un MONITOR.
+ Solo un proceso a la vez puede estar dentro de un procedimiento
+ del monitor, asi que no hacen falta wait ni signal.
+*/
+monitor Contador {
+  int valor;
+
+  void incrementar(int id) {
+    int local;
+    local = valor;
+    valor = local + 1;
+    cout << "Proceso " << id << " -> contador = " << valor << endl;
+  }
+
+  int leer() {
+    return valor;
+  }
+
+  init { valor = 0; }
+}
+
+void proceso(int id) {
+  int i;
+  for (i = 1; i <= 3; i++)
+    incrementar(id);
+}
+
+void main() {
+  cobegin {
+    proceso(1); proceso(2);
+  }
+  cout << "Final: " << leer() << endl;
+}
+` },
+{ id: 'm3', file: 'p-c-mon.cm', name: 'Monitor · Productor-consumidor (p-c-mon.cm)', code:
+`monitor PC {
+	const int N = 5;
+	int Oldest;
+	int Newest;
+	int Count;
+	condition NotEmpty;
+	condition NotFull;
+	int Buffer[N];
+
+void Append(int V) {
+	if (Count == N) 
+		waitc(NotFull);
+	Buffer[Newest] = V;
+	Newest = (Newest + 1) % N;
+	Count = Count + 1;
+	signalc(NotEmpty);
+}
+
+int Take() {
+	int temp;
+	if (Count == 0) 
+		waitc(NotEmpty);
+	temp = Buffer[Oldest];
+	Oldest = (Oldest + 1) % N;
+	Count = Count - 1;
+	signalc(NotFull);
+	return temp;
+}
+
+init {
+	Count = 0; Oldest = 0; Newest = 0;
+}
+
+}
+
+const	int Values = 20;
+
+void Producer(int ID) {
+	int I;
+	for (I = 1; I < Values; I++) {
+		cout << "Producer " << ID << " producing " << ID*100+I << '\\n';
+		Append(ID*100+I);
+	}
+}
+
+void Consumer(int ID) {
+	int I, J;
+	for (I = 1; I < Values; I++) {
+		J = Take();
+		cout << "Consumer " << ID << " consuming " << J << '\\n';
+	}
+}
+
+void main() {
+	cobegin {
+		Producer(1); Consumer(1); //Consumer(2); Consumer(3);
+	}
+}` },
+{ id: 'm4', file: 'mon-sem.cm', name: 'Monitor · Semáforo hecho con monitor (mon-sem.cm)', code:
+`/* Monitor implementation of semaphore. */
+monitor monSemaphore {
+	int semvalue;
+	condition notbusy;
+
+	void monP() {
+	if (!semvalue)
+		waitc(notbusy);
+	else
+		semvalue--;
+		}
+		
+	void monV() {
+		if (empty(notbusy))
+			semvalue++;
+		else
+			signalc(notbusy);
+	}
+	
+	init{ semvalue = 1; } 
+} // end of monSemaphore monitor
+
+int n;
+
+void inc(int i) {
+  monP();
+  n = n + 1;
+  monV();
+}
+
+void main() {
+  cobegin {
+  inc(1); inc(2);
+  }
+}
+
+` },
 ];
 
 /* ---------------- interfaz ---------------- */
@@ -1469,7 +1775,7 @@ const STATE_TXT = { ready: 'listo', blocked: 'bloqueado', cobegin: 'esperando hi
 function renderAll() {
   if (!dirty) return;
   dirty = false;
-  renderStatus(); renderSems(); renderProcs(); renderVars(); renderConsole(); renderCode();
+  renderStatus(); renderSems(); renderMons(); renderProcs(); renderVars(); renderConsole(); renderCode();
 }
 function renderStatus() {
   const chip = $('#stChip'), msg = $('#stMsg');
@@ -1484,15 +1790,39 @@ function renderStatus() {
     msg.textContent = `Error en tiempo de ejecución${m.error.line ? ` (línea ${m.error.line})` : ''}, en ${m.error.proc}: ${m.error.msg}`;
   } else if (m.status === 'deadlock') {
     chip.textContent = 'Deadlock'; chip.classList.add('bad');
-    const bl = m.procs.filter(p => p.state === 'blocked').map(p => `${p.name} en «${p.blockedOn.name}»`);
+    const bl = m.procs.filter(p => p.state === 'blocked').map(p => `${p.name} (${blockTxt(p)})`);
     msg.hidden = false; msg.classList.add('bad');
-    msg.textContent = `Todos los procesos que quedan están esperando y nadie puede hacer signal: ${bl.join(', ')}.`;
+    msg.textContent = `Todos los procesos que quedan están esperando y ninguno puede despertar a otro: ${bl.join(', ')}.`;
   } else if (running) { chip.textContent = 'Ejecutando'; chip.classList.add('run'); }
   else if (m.status === 'ready') chip.textContent = 'Listo para ejecutar';
   else {
     chip.textContent = 'En pausa'; chip.classList.add('run');
     if (m.pausedLong) { msg.hidden = false; msg.textContent = `Se pausó tras ${AUTOPAUSE.toLocaleString('es-CL')} pasos seguidos (¿un ciclo infinito?). Presiona Continuar para seguir.`; }
   }
+}
+function blockTxt(p) {
+  const b = p.blockedOn;
+  switch (p.blockKind) {
+    case 'cond': return `waitc(${b.name}) en el monitor ${b.mon.name}`;
+    case 'entry': return `esperando entrar al monitor ${b.name}`;
+    case 'urgent': return `hizo signalc y espera volver al monitor ${b.name}`;
+    default: return `wait(${b.name})`;
+  }
+}
+function renderMons() {
+  const card = $('#monCard'), box = $('#mons');
+  if (!machine || !machine.monitors.size) { card.hidden = true; return; }
+  card.hidden = false;
+  $('#monCount').textContent = machine.monitors.size;
+  const q = (arr, empty) => arr.length ? arr.map(pchip).join('') : `<span>${empty}</span>`;
+  box.innerHTML = [...machine.monitors.values()].map(m => {
+    const conds = m.conds.length ? m.conds.map(c => `<div class="mrow"><span class="mk">condition <b>${esc(c.name)}</b></span><div class="queue">${c.queue.length ? c.queue.map(w => pchip(w.proc) + (w.prio !== 10 ? `<span class="prio">p${w.prio}</span>` : '')).join('') : '<span>nadie en waitc</span>'}</div></div>`).join('') : '';
+    return `<div class="mon"><div class="sem-top"><span class="lamp ${m.owner ? 'off' : 'on'}" title="${m.owner ? 'ocupado' : 'libre'}"></span><span class="sem-name">${esc(m.name)}</span></div>
+      <div class="mrow"><span class="mk">Dentro</span><div class="queue">${m.owner ? pchip(m.owner) : '<span>libre</span>'}</div></div>
+      <div class="mrow"><span class="mk">Esperan entrar</span><div class="queue">${q(m.entry, 'nadie')}</div></div>
+      ${m.urgent.length ? `<div class="mrow"><span class="mk">Cedieron con signalc</span><div class="queue">${q(m.urgent, '')}</div></div>` : ''}
+      ${conds}</div>`;
+  }).join('');
 }
 function pchip(p) { return `<span class="pc" data-c="${p.color}">${esc(p.name)}</span>`; }
 function renderSems() {
@@ -1520,7 +1850,7 @@ function renderProcs() {
     if (p === machine.cur && p.state === 'ready' && machine.status === 'running') { cls = 'cur'; txt = 'ejecutando'; }
     if (p.state === 'cobegin') cls = 'cob';
     let det = '';
-    if (p.state === 'blocked') det = `wait(${esc(p.blockedOn.name)}) · línea ${p.line}`;
+    if (p.state === 'blocked') det = `${esc(blockTxt(p))} · línea ${p.line}`;
     else if (p.state === 'cobegin') det = `cobegin · faltan ${p.children}`;
     else if (p.state !== 'done' && p.line) det = `línea ${p.line}`;
     return `<div class="proc ${p.state === 'done' ? 'isdone' : ''}" data-c="${p.color}"><span class="swatch"></span><span class="pname">${esc(p.name)}</span><span class="pill ${cls}">${txt}</span>${det ? `<span class="pdet">${det}</span>` : ''}</div>`;
@@ -1536,6 +1866,8 @@ function renderVars() {
   if (!machine) { box.innerHTML = ''; return; }
   const rows = [];
   for (const [name, c] of machine.globals) if (c.kind !== 'sem') rows.push(`<dt>${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
+  for (const m of machine.monitors.values())
+    for (const [name, c] of m.scope.vars) if (c.kind !== 'sem' && c.kind !== 'cond') rows.push(`<dt>${esc(m.name)}.${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
   box.innerHTML = rows.length ? rows.join('') : '<dt class="empty">Sin variables globales</dt><dd></dd>';
 }
 function renderConsole() {
