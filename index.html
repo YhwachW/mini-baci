@@ -158,10 +158,10 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .hist .ht b { color: var(--muted); font-weight: 400; }
 .engine { font-size: 12.5px; color: var(--muted); }
 /* selector C-- / PCode */
-.seg { display: inline-flex; background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
-.seg button { border: 0; background: transparent; color: var(--muted); font: 600 12.5px/1 var(--f-mono); padding: 6px 12px; border-radius: 7px; cursor: pointer; min-height: 30px; }
-.seg button.on { background: var(--amber); color: var(--amber-ink); }
-.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.segctl { display: inline-flex; background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.segctl button { border: 0; background: transparent; color: var(--muted); font: 600 12.5px/1 var(--f-mono); padding: 6px 12px; border-radius: 7px; cursor: pointer; min-height: 30px; }
+.segctl button.on { background: var(--amber); color: var(--amber-ink); }
+.segctl button:disabled { opacity: .45; cursor: not-allowed; }
 .codehead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .codehead .row { gap: 6px; }
 .btn.sm { padding: 5px 9px; font-size: 12.5px; }
@@ -241,6 +241,18 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .seg.err { color: var(--stop); font-weight: 600; }
 .seg.warn { color: var(--amber); }
 .seg.in { color: var(--input); font-weight: 600; }
+/* consola ordenada: una fila por línea completa, con el proceso que la escribió */
+.console.lines { white-space: normal; padding: 6px 0; }
+.cline { display: grid; grid-template-columns: 11.5em minmax(0, 1fr); gap: 10px; padding: 1px 12px; align-items: baseline; }
+.cline + .cline { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.cline .who { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.cline .who::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--pcol, var(--muted)); }
+.cline .ct { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cline.full { grid-template-columns: minmax(0, 1fr); }
+.cline.pend .ct { opacity: .6; }
+.cline.pend .ct::after { content: " …"; }
+@media (max-width: 639px) { .cline { grid-template-columns: 7.5em minmax(0, 1fr); gap: 6px; padding: 1px 8px; } }
+@media (min-width: 960px) { .panes.wide .cline { grid-template-columns: 8.5em minmax(0, 1fr); gap: 8px; padding: 1px 10px; } }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .stdin { display: flex; gap: 8px; }
 .stdin input { flex: 1; min-width: 0; font-family: var(--f-mono); }
@@ -363,8 +375,9 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
     <div class="grid">
       <div id="consoleCard" class="card span2">
         <div class="card-h"><span class="label">Consola</span>
-          <label class="toggle"><input id="colorOut" type="checkbox" checked> Color por proceso</label></div>
-        <pre id="console" class="console" aria-live="off"></pre>
+          <span class="row"><label class="toggle" title="Junta lo que escribe cada proceso en líneas completas, en el orden en que terminan"><input id="conLines" type="checkbox" checked> Una línea por proceso</label>
+          <label class="toggle"><input id="colorOut" type="checkbox" checked> Color por proceso</label></span></div>
+        <div id="console" class="console lines" aria-live="off"></div>
         <form id="stdinForm" class="stdin" hidden>
           <input id="stdin" class="txt" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dato para cin / nbcin" aria-label="Entrada del programa">
           <button class="btn" type="submit">Enviar</button>
@@ -401,7 +414,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <div class="codehead">
           <span class="label">Dónde va cada proceso</span>
           <span class="row">
-            <span class="seg" role="group" aria-label="Ver el programa como">
+            <span class="segctl" role="group" aria-label="Ver el programa como">
               <button id="viewSrc" type="button" class="on" aria-pressed="true">C--</button>
               <button id="viewPc" type="button" aria-pressed="false" title="El PCODE que genera bacc, con dónde va cada proceso">PCode</button>
             </span>
@@ -615,7 +628,7 @@ function compileAndBoot() {
   srcLines = src.split('\n');
   if (src !== lastSrc) { bps.clear(); lastSrc = src; }
   chosen = null; hist = []; histTotal = 0; histDrawn = -1; pcodeDrawn = ''; pcBuiltFor = null;
-  conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = '';
+  conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = ''; conSeg = 0; conOff = 0; conPend = new Map(); conRows = 0;
   resumeAfterInput = false;
   try { machine.boot(); }
   catch (e) { machine.status = 'error'; machine.error = { msg: e.message, line: e.line, proc: 'las declaraciones globales' }; }
@@ -764,6 +777,7 @@ $('#runFromEdit').addEventListener('click', () => {
 });
 $('#speedSel').addEventListener('change', () => store.set('speed', $('#speedSel').value));
 $('#colorOut').addEventListener('change', () => { conCount = 0; conBase = -1; dirty = true; renderAll(); });
+$('#conLines').addEventListener('change', () => { store.set('conlines', $('#conLines').checked ? '1' : '0'); conCount = 0; conBase = -1; dirty = true; renderAll(); });
 
 function updateButtons() {
   const pb = $('#playBtn');
@@ -1002,23 +1016,79 @@ function renderVars() {
     for (const [name, c] of m.scope.vars) if (!isSyncCell(c)) rows.push(`<dt>${esc(m.name)}.${esc(name)}${c.isConst ? ' (const)' : ''}</dt><dd>${esc(fmtCell(c))}</dd>`);
   box.innerHTML = rows.length ? rows.join('') : '<dt class="empty">Sin variables globales</dt><dd></dd>';
 }
+// estado de la consola ordenada
+let conSeg = 0, conOff = 0, conPend = new Map(), conRows = 0;
+function procNameOf(pid) {
+  if (pid < 0 || !machine) return '';
+  const p = machine.procs.find(q => q.pid === pid);
+  return p ? p.name : (pid === 0 ? 'main' : `proceso ${pid}`);
+}
+function conRow(box, pid, color, text, cls, pend) {
+  const row = document.createElement('div');
+  const colored = $('#colorOut').checked;
+  if (cls) {
+    row.className = 'cline full';
+    row.innerHTML = `<span class="ct seg ${cls}"></span>`;
+  } else {
+    row.className = 'cline' + (pend ? ' pend' : '');
+    row.dataset.c = color;
+    row.innerHTML = `<span class="who"></span><span class="ct seg ${colored ? 'c' + color : 'c0'}"></span>`;
+    row.firstChild.textContent = procNameOf(pid);
+    row.firstChild.title = procNameOf(pid);
+  }
+  row.lastChild.textContent = text;
+  box.appendChild(row);
+  return row;
+}
 function renderConsole() {
   const con = $('#console');
   if (!machine) { con.textContent = ''; conCount = 0; return; }
-  const segs = machine.out, colored = $('#colorOut').checked;
+  const segs = machine.out, colored = $('#colorOut').checked, lines = $('#conLines').checked;
+  con.classList.toggle('lines', lines);
   const nearBottom = con.scrollHeight - con.scrollTop - con.clientHeight < 40;
-  if (conBase !== machine.outBase || conCount === 0) { con.textContent = ''; conCount = 0; conBase = machine.outBase; }
-  if (conCount > 0 && con.lastChild) con.lastChild.textContent = segs[conCount - 1].text;
-  for (let i = conCount; i < segs.length; i++) {
-    const s = segs[i], el = document.createElement('span');
-    el.className = 'seg ' + (s.cls || (colored ? 'c' + s.color : 'c0'));
-    el.textContent = s.text;
-    con.appendChild(el);
-  }
-  conCount = segs.length;
-  const tail = txt => { machine.out.push({ pid: -9, color: 0, text: txt, cls: 'err' }); const el = document.createElement('span'); el.className = 'seg err'; el.textContent = txt; con.appendChild(el); conCount = machine.out.length; };
+  const tail = txt => { machine.out.push({ pid: -9, color: 0, text: txt, cls: 'err' }); };
   if (machine.status === 'error' && !machine.errShown) { machine.errShown = true; tail(`\nError${machine.error.line ? ` en ${lineTxt(machine.error.line)}` : ''}: ${machine.error.msg}\n`); }
   if (machine.status === 'deadlock' && !machine.dlShown) { machine.dlShown = true; tail('\n*** Deadlock: todos los procesos están bloqueados ***\n'); }
+  const reset = conBase !== machine.outBase || conCount === 0;
+  if (!lines) {
+    // salida tal cual, mezclada como la escriben los procesos (como la consola de jBACI)
+    if (reset) { con.textContent = ''; conCount = 0; conBase = machine.outBase; }
+    if (conCount > 0 && con.lastChild) con.lastChild.textContent = segs[conCount - 1].text;
+    for (let i = conCount; i < segs.length; i++) {
+      const sg = segs[i], el = document.createElement('span');
+      el.className = 'seg ' + (sg.cls || (colored ? 'c' + sg.color : 'c0'));
+      el.textContent = sg.text;
+      con.appendChild(el);
+    }
+    conCount = segs.length;
+  } else {
+    if (reset) {
+      con.textContent = ''; conSeg = 0; conOff = 0; conPend = new Map(); conRows = 0; conBase = machine.outBase;
+      con.appendChild(Object.assign(document.createElement('div'), { id: 'conDone' }));
+      con.appendChild(Object.assign(document.createElement('div'), { id: 'conPend' }));
+    }
+    const done = $('#conDone');
+    // el último segmento puede seguir creciendo: se lee desde donde se quedó
+    for (let i = conSeg; i < segs.length; i++) {
+      const sg = segs[i];
+      const text = sg.text.slice(i === conSeg ? conOff : 0);
+      if (sg.cls) {
+        for (const part of text.split('\n')) if (part.trim()) { conRow(done, sg.pid, 0, part, sg.cls); conRows++; }
+      } else if (text) {
+        const parts = ((conPend.get(sg.pid) || { t: '' }).t + text).split('\n');
+        for (let k = 0; k < parts.length - 1; k++) { conRow(done, sg.pid, sg.color, parts[k]); conRows++; }
+        conPend.set(sg.pid, { t: parts[parts.length - 1], color: sg.color });
+      }
+      conSeg = i; conOff = sg.text.length;
+    }
+    if (segs.length === 0) { conSeg = 0; conOff = 0; }
+    while (conRows > 2000 && done.firstChild) { done.firstChild.remove(); conRows--; }
+    // líneas que un proceso dejó a medio escribir
+    const pend = $('#conPend');
+    pend.textContent = '';
+    for (const [pid, v] of conPend) if (v.t) conRow(pend, pid, v.color, v.t, null, true);
+    conCount = segs.length;
+  }
   if (nearBottom || running) con.scrollTop = con.scrollHeight;
 }
 function renderCode() {
@@ -1076,6 +1146,7 @@ try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) n
   const sp = store.get('speed'); if (sp && SPEEDS[sp]) $('#speedSel').value = sp;
   $('#swapPause').checked = store.get('swap') === '1';
   $('#usePcode').checked = store.get('pcode') !== '0';
+  $('#conLines').checked = store.get('conlines') !== '0';
   if (store.get('view') === 'pc') setCodeMode('pc');
   if (store.get('wide') === '1') setWide(true);
   // migración: el código propio de la versión anterior pasa a "Mis archivos"
