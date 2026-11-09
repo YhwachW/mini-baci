@@ -554,6 +554,124 @@ void main() {
 		Producer(1); Consumer(1); //Consumer(2); Consumer(3);
 	}
 }` },
+{ id: 'sm1', file: '07-contador-monitor-y-semaforo.cm', name: 'Monitor + semáforo · Contador (simple)', code:
+`/*
+  07-contador-monitor-y-semaforo.cm  (version simple)
+
+  - MONITOR "Contador": dos procesos suman al mismo valor sin chocar,
+    porque solo uno a la vez puede estar dentro del monitor.
+  - SEMAFORO "listo" (empieza en 0): el jefe espera a que los dos
+    trabajadores terminen antes de mostrar el resultado.
+
+  Resultado esperado: siempre "Total: 6".
+*/
+
+semaphore listo;
+
+monitor Contador {
+  int valor;
+  void sumar() { valor = valor + 1; }
+  int leer() { return valor; }
+  init { valor = 0; }
+}
+
+void trabajador(int id) {
+  int i;
+  for (i = 1; i <= 3; i++) sumar();
+  cout << "Trabajador " << id << " termino." << endl;
+  signal(listo);
+}
+
+void jefe() {
+  wait(listo);
+  wait(listo);
+  cout << "Total: " << leer() << endl;
+}
+
+void main() {
+  initialsem(listo, 0);
+  cobegin { trabajador(1); trabajador(2); jefe(); }
+}
+` },
+{ id: 'sm2', file: '06-cafeteria-semaforo-y-monitor.cm', name: 'Monitor + semáforo · Cafetería (mesas y pedidos)', code:
+`/*
+  06-cafeteria-semaforo-y-monitor.cm
+
+  Una cafeteria con 2 mesas y 4 clientes. Hay un cocinero.
+
+  - SEMAFORO "mesas" (empieza en 2): solo 2 clientes pueden estar
+    sentados a la vez. El tercero y el cuarto esperan en wait(mesas).
+
+  - MONITOR "Mostrador": guarda la cola de pedidos. Los clientes dejan
+    su pedido con pedir(id) y el cocinero los saca con tomar().
+    Si no hay pedidos, el cocinero espera en waitc(hayPedido).
+
+  - SEMAFOROS "servido[i]" (empiezan en 0): el cliente i espera su plato
+    con wait(servido[i]) y el cocinero se lo entrega con signal(servido[i]).
+
+  Que observar en Mini BACI / jBACI:
+  - Semaforos: "mesas" baja a 0 y los otros clientes quedan esperando.
+  - Monitores: el cocinero en la cola de "hayPedido" cuando no hay pedidos,
+    y la variable Mostrador.pedidos subiendo y bajando (nunca pasa de 4).
+*/
+
+const int CLIENTES = 4;
+
+semaphore mesas;
+semaphore servido[CLIENTES];
+
+monitor Mostrador {
+  int cola[CLIENTES];
+  int ini, fin, pedidos;
+  condition hayPedido;
+
+  void pedir(int id) {
+    cola[fin] = id;
+    fin = (fin + 1) % CLIENTES;
+    pedidos = pedidos + 1;
+    signalc(hayPedido);
+  }
+
+  int tomar() {
+    int id;
+    if (pedidos == 0) waitc(hayPedido);
+    id = cola[ini];
+    ini = (ini + 1) % CLIENTES;
+    pedidos = pedidos - 1;
+    return id;
+  }
+
+  init { ini = 0; fin = 0; pedidos = 0; }
+}
+
+void cliente(int id) {
+  wait(mesas);
+  cout << "Cliente " << id << " se sienta y pide." << endl;
+  pedir(id);
+  wait(servido[id]);
+  cout << "Cliente " << id << " come y deja la mesa." << endl;
+  signal(mesas);
+}
+
+void cocinero() {
+  int i, id;
+  for (i = 1; i <= CLIENTES; i++) {
+    id = tomar();
+    cout << "Cocinero prepara el pedido del cliente " << id << endl;
+    signal(servido[id]);
+  }
+}
+
+void main() {
+  int i;
+  initialsem(mesas, 2);
+  for (i = 0; i < CLIENTES; i++) initialsem(servido[i], 0);
+  cobegin {
+    cliente(0); cliente(1); cliente(2); cliente(3); cocinero();
+  }
+  cout << "Cafeteria cerrada." << endl;
+}
+` },
 { id: 'm4', file: 'mon-sem.cm', name: 'Monitor · Semáforo hecho con monitor (mon-sem.cm)', code:
 `/* Monitor implementation of semaphore. */
 monitor monSemaphore {
