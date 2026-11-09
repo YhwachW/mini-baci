@@ -86,7 +86,7 @@ select.sel, input.txt { border: 1px solid var(--line); background: var(--surface
 .gutter, #code { font: 14px/1.55 var(--f-mono); padding-block: 12px; }
 .gutter { padding-inline: 10px 8px; text-align: right; color: var(--muted); user-select: none; white-space: pre; overflow: hidden; border-right: 1px solid var(--line); min-width: 3.2em; background: var(--sunk); font-variant-numeric: tabular-nums; }
 .gutter .bad { color: var(--stop); font-weight: 600; }
-#code { flex: 1; min-width: 0; border: 0; outline: none; resize: none; padding-inline: 12px; background: transparent; white-space: pre; overflow: auto; height: min(60vh, 640px); tab-size: 4; }
+#code { flex: 1; min-width: 0; border: 0; outline: none; resize: none; padding-inline: 12px; background: transparent; white-space: pre; overflow: auto; height: min(60vh, 640px); max-height: 75vh; tab-size: 4; }
 @media (pointer: coarse) { .gutter, #code { font-size: 16px; } }
 .errbox { border: 1px solid var(--stop); border-left-width: 4px; background: var(--surface); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
 .errbox b { color: var(--stop); }
@@ -197,7 +197,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
     grid-template-areas: "code procs sync" "code procs cons" "code vars hist";
   }
   .panes.wide .grid.nosync { grid-template-areas: "code procs cons" "code procs cons" "code vars hist"; }
-  .panes.wide #codeCard { grid-area: code; }
+  .panes.wide #codeCard { grid-area: code; align-self: start; max-height: 100%; }
   .panes.wide #procCard { grid-area: procs; }
   .panes.wide #varCard { grid-area: vars; }
   .panes.wide #syncBox { grid-area: sync; display: grid; gap: 10px; align-content: start; overflow: auto; min-height: 0; }
@@ -263,13 +263,13 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .vars dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 .codeview { font: 12.5px/1.6 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 52vh; }
-.cl { display: grid; grid-template-columns: 3.4em 4.6em max-content; white-space: pre; }
+.cl { display: grid; grid-template-columns: 2.9em 2.3em max-content; white-space: pre; }
 .cl .n { color: var(--muted); text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; user-select: none; cursor: pointer; }
 .cl .n:hover { color: var(--ink); }
 .cl.bp .n { color: var(--stop); font-weight: 700; }
 .cl.bp .n::before { content: "\25CF"; margin-right: 3px; }
-.cl .m { display: flex; gap: 2px; align-items: center; padding: 0 4px; }
-.cl .m i { width: 9px; height: 9px; border-radius: 2px; background: var(--pcol); }
+.cl .m { display: flex; gap: 1px; align-items: center; padding: 0 3px; }
+.cl .m i { width: 8px; height: 8px; border-radius: 2px; background: var(--pcol); flex: none; }
 .cl.hot { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .cl.errl { background: color-mix(in srgb, var(--stop) 16%, transparent); }
 .cl .t { padding-right: 12px; }
@@ -562,7 +562,15 @@ function resolveInclude(name) {
 
 /* ---------------- editor ---------------- */
 let errLine = null;
+function fitEditor() {
+  // el cuadro mide lo que mide el programa (entre 8 líneas y el 75% de la pantalla)
+  const n = ed.value.split('\n').length;
+  const lh = parseFloat(getComputedStyle(ed).lineHeight) || 22;
+  const pad = 24 + (ed.scrollWidth > ed.clientWidth ? 14 : 0);
+  ed.style.height = Math.round(Math.max(8, n) * lh + pad) + 'px';
+}
 function updateGutter() {
+  fitEditor();
   const n = ed.value.split('\n').length;
   let s = '';
   for (let i = 1; i <= n; i++) s += (i === errLine ? `<span class="bad">${i}</span>` : i) + '\n';
@@ -1100,7 +1108,7 @@ function renderCode() {
   let html = '';
   srcLines.forEach((ln, i) => {
     const n = i + 1, m = marks[n];
-    html += `<div class="cl${m ? ' hot' : ''}${n === eLine ? ' errl' : ''}${bps.has(n) ? ' bp' : ''}" data-n="${n}"><span class="n" title="Poner o quitar breakpoint">${n}</span><span class="m">${m ? m.slice(0, 6).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="t">${esc(ln) || ' '}</span></div>`;
+    html += `<div class="cl${m ? ' hot' : ''}${n === eLine ? ' errl' : ''}${bps.has(n) ? ' bp' : ''}" data-n="${n}"><span class="n" title="Poner o quitar breakpoint">${n}</span><span class="m" title="${m ? esc(m.map(p => p.name).join(', ')) : ''}">${m ? m.slice(0, 3).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="t">${esc(ln) || ' '}</span></div>`;
   });
   box.innerHTML = html;
 }
