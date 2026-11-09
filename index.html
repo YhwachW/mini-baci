@@ -1137,7 +1137,15 @@ $('#installBtn').addEventListener('click', async () => {
   try { await deferredPrompt.userChoice; } catch (e) {}
   deferredPrompt = null; $('#installBtn').hidden = true;
 });
-try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {}
+try {
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    const hadSW = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {});
+    // cuando llega una versión nueva, recarga una vez (si no se está ejecutando nada)
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSW && !reloaded && !running) { reloaded = true; location.reload(); } });
+  }
+} catch (e) {}
 
 /* ---------------- inicio ---------------- */
 (function init() {
