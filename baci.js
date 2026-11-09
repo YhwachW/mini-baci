@@ -1192,13 +1192,16 @@ class Machine {
     throw bErr('Instrucción no soportada', s.line);
   }
   /* Ejecuta un paso. Devuelve false cuando no se puede seguir (fin, error, deadlock o esperando un dato). */
-  step() {
+  /* forced (opcional): proceso elegido por el usuario, como al hacer clic en la tabla de jBACI. */
+  step(forced) {
     if (this.status === 'input') return false;
     if (this.status !== 'ready' && this.status !== 'running') return false;
     this.status = 'running';
     let p = this.cur;
     const keep = p && p.state === 'ready' && (p.atomic > 0 || this.quantum > 0);
-    if (!keep) {
+    if (forced && forced.state === 'ready' && !(keep && p.atomic > 0)) {
+      p = forced; this.cur = p; this.quantum = 0;
+    } else if (!keep) {
       const ready = this.procs.filter(q => q.state === 'ready');
       if (!ready.length) {
         if (this.procs.every(q => q.state === 'done')) { this.status = 'done'; this.cur = null; return false; }
@@ -1217,6 +1220,7 @@ class Machine {
       return false;
     }
     this.steps++;
+    this.last = p;
     if (r.done) {
       p.state = 'done'; p.line = null;
       if (p.parent) { p.parent.children--; if (p.parent.children === 0 && p.parent.state === 'cobegin') p.parent.state = 'ready'; }

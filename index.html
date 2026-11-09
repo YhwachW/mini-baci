@@ -147,6 +147,15 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .procs { display: grid; gap: 2px; }
 .proc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .proc:last-child { border-bottom: 0; }
+.proc { cursor: pointer; border-radius: 6px; }
+.proc.sel { background: color-mix(in srgb, var(--amber) 12%, transparent); box-shadow: inset 3px 0 0 var(--amber); }
+.hint { font-size: 12px; color: var(--muted); }
+.hist { list-style: none; margin: 0; padding: 4px 0; font: 12.5px/1.5 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; max-height: 34vh; overflow: auto; }
+.hist li { display: grid; grid-template-columns: 4.2em max-content minmax(0, 1fr); gap: 8px; align-items: center; padding: 1px 10px; }
+.hist li.empty { display: block; }
+.hist .hs { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.hist .ht { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.hist .ht b { color: var(--muted); font-weight: 400; }
 .swatch { width: 10px; height: 26px; border-radius: 3px; background: var(--pcol, var(--muted)); }
 .pname { font: 600 13.5px/1.3 var(--f-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pname small { color: var(--muted); font-weight: 400; margin-right: 4px; }
@@ -177,8 +186,11 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .vars dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 .codeview { font: 12.5px/1.6 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; overflow: auto; max-height: 52vh; }
-.cl { display: grid; grid-template-columns: 2.6em 4.6em max-content; white-space: pre; }
-.cl .n { color: var(--muted); text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; user-select: none; }
+.cl { display: grid; grid-template-columns: 3.4em 4.6em max-content; white-space: pre; }
+.cl .n { color: var(--muted); text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; user-select: none; cursor: pointer; }
+.cl .n:hover { color: var(--ink); }
+.cl.bp .n { color: var(--stop); font-weight: 700; }
+.cl.bp .n::before { content: "\25CF"; margin-right: 3px; }
 .cl .m { display: flex; gap: 2px; align-items: center; padding: 0 4px; }
 .cl .m i { width: 9px; height: 9px; border-radius: 2px; background: var(--pcol); }
 .cl.hot { background: color-mix(in srgb, var(--amber) 14%, transparent); }
@@ -266,6 +278,11 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
           <option value="instant">Al instante</option>
         </select>
       </div>
+      <div class="row">
+        <label class="toggle"><input id="swapPause" type="checkbox"> Pausar al cambiar de proceso</label>
+        <button id="clearBp" class="btn" type="button" hidden>Quitar breakpoints</button>
+        <span class="hint">Toca un número de línea para poner un breakpoint · toca un proceso para que Paso lo avance a él</span>
+      </div>
       <div class="status">
         <span id="stChip" class="chip">Sin ejecutar</span>
         <span id="stSteps" class="steps"></span>
@@ -311,6 +328,10 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
       <div class="card span2">
         <div class="card-h"><span class="label">Dónde va cada proceso</span></div>
         <div id="codeview" class="codeview"></div>
+      </div>
+      <div class="card span2">
+        <div class="card-h"><span class="label">Historial (qué proceso ejecutó cada línea)</span><span id="histCount" class="label"></span></div>
+        <ol id="hist" class="hist"><li class="empty">Aún no se ejecuta nada.</li></ol>
       </div>
     </div>
   </section>
@@ -483,6 +504,10 @@ let conCount = 0, conBase = -1, gfxDrawn = -1;
 const AUTOPAUSE = 400000;
 const SPEEDS = { lento: { ms: 420 }, normal: { ms: 70 }, rapido: { per: 40 }, instant: { per: Infinity } };
 const ENDED = ['done', 'error', 'deadlock'];
+const bps = new Set();                 // breakpoints: números de línea del archivo principal
+let chosen = null;                     // proceso elegido para el botón Paso
+let hist = [], histTotal = 0, histDrawn = -1, lastSrc = null;
+const HMAX = 400;
 
 function compileAndBoot() {
   const src = ed.value;
@@ -492,6 +517,8 @@ function compileAndBoot() {
   $('#errBox').hidden = true; errLine = null; updateGutter();
   machine = new BACI.Machine(prog);
   srcLines = src.split('\n');
+  if (src !== lastSrc) { bps.clear(); lastSrc = src; }
+  chosen = null; hist = []; histTotal = 0; histDrawn = -1;
   conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = '';
   resumeAfterInput = false;
   try { machine.boot(); }
@@ -514,13 +541,22 @@ function stop() { running = false; cancelAnimationFrame(raf); updateButtons(); }
 function play() {
   if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
   if (machine.status === 'input') { resumeAfterInput = true; focusInput(); dirty = true; renderAll(); return; }
+  machine.bpHit = null; machine.swapTo = null;
   running = true; segSteps = 0; lastT = performance.now(); acc = 0;
   updateButtons();
   raf = requestAnimationFrame(loop);
 }
-function doStep() {
-  const ok = machine.step();
+function doStep(forced) {
+  const prev = machine.last, prevLine = prev ? prev.line : null;
+  const ok = machine.step(forced);
   segSteps++;
+  const p = machine.last;
+  if (p && p.line && (p !== prev || p.line !== prevLine)) {
+    hist.push({ n: machine.steps, p, line: p.line }); histTotal++;
+    if (hist.length > HMAX) hist.splice(0, hist.length - HMAX);
+    if (running && p.line < LF && bps.has(p.line)) { running = false; machine.bpHit = p.line; }
+  }
+  if (running && ok && prev && p && p !== prev && $('#swapPause').checked) { running = false; machine.swapTo = p; }
   if (!ok) {
     running = false;
     if (machine.status === 'input') { resumeAfterInput = true; focusInput(); }
@@ -557,8 +593,24 @@ $('#stepBtn').addEventListener('click', () => {
   stop();
   if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
   if (machine.status === 'input') { focusInput(); return; }
-  doStep(); renderAll(); updateButtons();
+  machine.bpHit = null; machine.swapTo = null;
+  doStep(chosen && chosen.state === 'ready' ? chosen : null); renderAll(); updateButtons();
 });
+$('#procs').addEventListener('click', e => {
+  const row = e.target.closest('.proc'); if (!row || !machine) return;
+  const p = machine.procs[+row.dataset.pid];
+  chosen = chosen === p ? null : p;
+  machine.bpHit = null; machine.swapTo = null;
+  dirty = true; renderAll();
+});
+$('#codeview').addEventListener('click', e => {
+  const cell = e.target.closest('.n'); if (!cell) return;
+  const n = +cell.closest('.cl').dataset.n;
+  if (bps.has(n)) bps.delete(n); else bps.add(n);
+  dirty = true; renderAll();
+});
+$('#clearBp').addEventListener('click', () => { bps.clear(); dirty = true; renderAll(); });
+$('#swapPause').addEventListener('change', () => store.set('swap', $('#swapPause').checked ? '1' : ''));
 $('#resetBtn').addEventListener('click', () => { stop(); if (!compileAndBoot()) setTab('edit'); });
 $('#runFromEdit').addEventListener('click', () => { stop(); if (compileAndBoot()) { setTab('run'); play(); } });
 $('#speedSel').addEventListener('change', () => store.set('speed', $('#speedSel').value));
@@ -576,7 +628,21 @@ function updateButtons() {
 function renderAll() {
   if (!dirty) return;
   dirty = false;
-  renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode();
+  renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode(); renderHist();
+}
+function renderHist() {
+  const box = $('#hist');
+  $('#clearBp').hidden = !bps.size;
+  if (histDrawn === histTotal) return;
+  histDrawn = histTotal;
+  if (!hist.length) { box.innerHTML = '<li class="empty">Aún no se ejecuta nada.</li>'; $('#histCount').textContent = ''; return; }
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  $('#histCount').textContent = histTotal > HMAX ? `últimas ${HMAX} de ${histTotal.toLocaleString('es-CL')}` : `${histTotal}`;
+  box.innerHTML = hist.map(h => {
+    const txt = h.line < LF ? (srcLines[h.line - 1] || '').trim() : '';
+    return `<li><span class="hs">${h.n}</span>${pchip(h.p)}<span class="ht"><b>${esc(lineTxt(h.line))}:</b> ${esc(txt)}</span></li>`;
+  }).join('');
+  if (near || running) box.scrollTop = box.scrollHeight;
 }
 function lineTxt(l) { return machine ? machine.fmtLine(l) : ''; }
 function renderStatus() {
@@ -603,6 +669,9 @@ function renderStatus() {
   else if (m.status === 'ready') chip.textContent = 'Listo para ejecutar';
   else {
     chip.textContent = 'En pausa'; chip.classList.add('run');
+    if (m.bpHit) { msg.hidden = false; msg.textContent = `Se detuvo en el breakpoint de la ${lineTxt(m.bpHit)} (${m.last ? m.last.name : ''}). Presiona Continuar para seguir.`; }
+    else if (m.swapTo) { msg.hidden = false; msg.textContent = `Cambio de proceso: ahora ejecuta ${m.swapTo.name}. Presiona Continuar para seguir.`; }
+    else if (chosen) { msg.hidden = false; msg.textContent = chosen.state === 'ready' ? `Paso avanzará a ${chosen.name}.` : `${chosen.name} no está listo (${STATE_TXT[chosen.state] || chosen.state}); Paso elegirá un proceso al azar.`; }
     if (m.pausedLong) { msg.hidden = false; msg.textContent = `Se pausó tras ${AUTOPAUSE.toLocaleString('es-CL')} pasos seguidos (¿un ciclo infinito?). Presiona Continuar para seguir.`; }
   }
 }
@@ -693,7 +762,7 @@ function renderProcs() {
     else if (p.state === 'cobegin') det = `cobegin · faltan ${p.children}`;
     else if (p.state !== 'done' && p.line) det = lineTxt(p.line);
     if (p.mon && p.state !== 'done') det += ` · dentro de ${esc(p.mon.name)}`;
-    return `<div class="proc ${p.state === 'done' ? 'isdone' : ''}" data-c="${p.color}"><span class="swatch"></span><span class="pname"><small>#${p.pid}</small>${esc(p.name)}</span><span class="pill ${cls}">${txt}</span>${det ? `<span class="pdet">${det}</span>` : ''}</div>`;
+    return `<div class="proc ${p.state === 'done' ? 'isdone' : ''}${p === chosen ? ' sel' : ''}" data-c="${p.color}" data-pid="${p.pid}" title="Elegir este proceso para el botón Paso"><span class="swatch"></span><span class="pname"><small>#${p.pid}</small>${esc(p.name)}</span><span class="pill ${cls}">${txt}</span>${det ? `<span class="pdet">${det}</span>` : ''}</div>`;
   }).join('');
 }
 function fmtCell(c, depth) {
@@ -743,7 +812,7 @@ function renderCode() {
   let html = '';
   srcLines.forEach((ln, i) => {
     const n = i + 1, m = marks[n];
-    html += `<div class="cl${m ? ' hot' : ''}${n === eLine ? ' errl' : ''}"><span class="n">${n}</span><span class="m">${m ? m.slice(0, 6).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="t">${esc(ln) || ' '}</span></div>`;
+    html += `<div class="cl${m ? ' hot' : ''}${n === eLine ? ' errl' : ''}${bps.has(n) ? ' bp' : ''}" data-n="${n}"><span class="n" title="Poner o quitar breakpoint">${n}</span><span class="m">${m ? m.slice(0, 6).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="t">${esc(ln) || ' '}</span></div>`;
   });
   box.innerHTML = html;
 }
@@ -775,6 +844,7 @@ try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) n
   let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
   if (framed) $('#saveBtn').hidden = true;   // en una vista previa el navegador no deja descargar
   const sp = store.get('speed'); if (sp && SPEEDS[sp]) $('#speedSel').value = sp;
+  $('#swapPause').checked = store.get('swap') === '1';
   // migración: el código propio de la versión anterior pasa a "Mis archivos"
   const oldCode = store.get('code');
   if (oldCode && !Object.keys(lib).length && store.get('ex') === '__mine') { lib[normName(store.get('file') || 'programa.cm')] = oldCode; saveLib(); }

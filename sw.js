@@ -1,5 +1,5 @@
 // Mini BACI: guarda la app para que funcione sin internet.
-const CACHE = 'minibaci-v5';
+const CACHE = 'minibaci-v6';
 const ASSETS = ['./', './index.html', './baci.js', './ejemplos.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
