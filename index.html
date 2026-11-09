@@ -193,17 +193,18 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
   .panes.wide .grid {
     min-height: 0; height: 100%; gap: 10px;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .7fr);
-    grid-template-areas: "code procs sync" "code procs cons" "code vars hist";
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr) minmax(0, .8fr);
+    grid-template-areas: "code procs sync" "code procs sync" "code vars cons" "code hist cons";
   }
-  .panes.wide .grid.nosync { grid-template-areas: "code procs cons" "code procs cons" "code vars hist"; }
+  .panes.wide .grid.nosync { grid-template-areas: "code procs cons" "code procs cons" "code vars cons" "code hist cons"; }
   .panes.wide #codeCard { grid-area: code; align-self: start; max-height: 100%; }
   .panes.wide #procCard { grid-area: procs; }
   .panes.wide #varCard { grid-area: vars; }
-  .panes.wide #syncBox { grid-area: sync; display: grid; gap: 10px; align-content: start; overflow: auto; min-height: 0; }
+  .panes.wide #syncBox { grid-area: sync; display: grid; gap: 10px; align-content: start; grid-auto-rows: max-content; overflow: auto; min-height: 0; }
   .panes.wide #consoleCard { grid-area: cons; }
   .panes.wide #histCard { grid-area: hist; }
   .panes.wide .grid > .card, .panes.wide #syncBox > .card { grid-column: auto; min-height: 0; padding: 8px 12px; gap: 6px; }
+  .panes.wide #syncBox > .card { min-height: auto; overflow: visible; }
   .panes.wide .grid > .card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .panes.wide .codeview, .panes.wide .pcode, .panes.wide .console, .panes.wide .hist, .panes.wide .procs, .panes.wide .vars { max-height: none; height: auto; min-height: 0; overflow: auto; }
   .panes.wide .procs, .panes.wide .vars { align-content: start; }
