@@ -157,8 +157,36 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .hist .ht { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .hist .ht b { color: var(--muted); font-weight: 400; }
 .engine { font-size: 12.5px; color: var(--muted); }
+/* selector C-- / PCode */
+.seg { display: inline-flex; background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 600 12.5px/1 var(--f-mono); padding: 6px 12px; border-radius: 7px; cursor: pointer; min-height: 30px; }
+.seg button.on { background: var(--amber); color: var(--amber-ink); }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.codehead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.codehead .row { gap: 6px; }
+.btn.sm { padding: 5px 9px; font-size: 12.5px; }
+.pcode .ins { cursor: default; }
+@media (max-width: 639px) {
+  #codeCard { order: -1; }                       /* en el celular, el programa va primero */
+  .console { height: min(28vh, 260px); }
+  #pcode .ins { grid-template-columns: 2.2em 1.3em 9.4em 1.4em 2.8em minmax(0, 1fr); gap: 0 4px; padding: 0 6px; font-size: 11.5px; }
+  #pcode .ins .mk i:nth-child(n+2) { display: none; }
+}
+/* botón para ampliar la ejecución (solo en pantallas anchas) */
+#wideBtn { display: none; border: 1px solid #3A4651; background: transparent; color: #E8EDF2; border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; cursor: pointer; margin-left: auto; }
+#wideBtn[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+@media (min-width: 960px) {
+  #wideBtn { display: inline-block; }
+  .panes.wide { grid-template-columns: minmax(0, 1fr); }
+  .panes.wide .pane-edit { display: none; }
+  .panes.wide .grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+  .panes.wide .grid > .card { grid-column: 2; }
+  .panes.wide .grid > #codeCard { grid-column: 1; grid-row: 1 / span 30; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 200px); }
+  .panes.wide #codeCard .codeview, .panes.wide #codeCard .pcode { max-height: calc(100vh - 290px); }
+  .panes.wide .console { height: min(30vh, 320px); }
+}
 .engine.warn { color: var(--amber); }
-.pcode { font: 12.5px/1.55 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; max-height: 46vh; overflow: auto; }
+.pcode { font: 12.5px/1.55 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; max-height: 52vh; overflow: auto; }
 .pcode .src { color: var(--muted); padding: 4px 10px 0; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .pcode .ins { display: grid; grid-template-columns: 3.6em 5.2em 11em 3em 4.5em minmax(0, 1fr); gap: 0 6px; padding: 0 10px; white-space: pre; align-items: center; }
 .pcode .ins.hot { background: color-mix(in srgb, var(--amber) 16%, transparent); }
@@ -223,6 +251,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
       <div><h1>Mini BACI</h1><small>intérprete C-- · jBACI</small></div>
     </div>
     <button id="installBtn" type="button" hidden>Instalar app</button>
+    <button id="wideBtn" type="button" aria-pressed="false" title="Oculta el editor para ver toda la ejecución a lo ancho">Ampliar ejecución</button>
     <nav class="tabs" role="tablist" aria-label="Vista">
       <button id="tabEdit" type="button" role="tab" aria-selected="true" aria-controls="paneEdit">Código</button>
       <button id="tabRun" type="button" role="tab" aria-selected="false" aria-controls="paneRun">Ejecución</button>
@@ -341,14 +370,20 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <div class="card-h"><span class="label">Variables globales</span></div>
         <dl id="vars" class="vars"></dl>
       </div>
-      <div class="card span2">
-        <div class="card-h"><span class="label">Dónde va cada proceso</span></div>
+      <div id="codeCard" class="card span2">
+        <div class="codehead">
+          <span class="label">Dónde va cada proceso</span>
+          <span class="row">
+            <span class="seg" role="group" aria-label="Ver el programa como">
+              <button id="viewSrc" type="button" class="on" aria-pressed="true">C--</button>
+              <button id="viewPc" type="button" aria-pressed="false" title="El PCODE que genera bacc, con dónde va cada proceso">PCode</button>
+            </span>
+            <button id="dlPco" class="btn sm" type="button" hidden>.pco</button>
+            <button id="dlLst" class="btn sm" type="button" hidden>.lst</button>
+          </span>
+        </div>
         <div id="codeview" class="codeview"></div>
-      </div>
-      <div id="pcodeCard" class="card span2" hidden>
-        <div class="card-h"><span class="label">PCode (lo que compila bacc)</span>
-          <span class="row"><button id="dlPco" class="btn" type="button">Descargar .pco</button><button id="dlLst" class="btn" type="button">Descargar .lst</button></span></div>
-        <div id="pcode" class="pcode"></div>
+        <div id="pcode" class="pcode" hidden></div>
       </div>
       <div class="card span2">
         <div class="card-h"><span class="label">Historial (qué proceso ejecutó cada línea)</span><span id="histCount" class="label"></span></div>
@@ -502,6 +537,7 @@ ed.addEventListener('keydown', e => {
 let lastFiles = [];
 function where(l) { const f = Math.floor(l / LF), n = l % LF; return { file: f, n, text: f === 0 ? `la línea ${n}` : `la línea ${n} de ${lastFiles[f] || 'un #include'}` }; }
 function showError(e) {
+  if ($('.panes').classList.contains('wide')) setWide(false);
   const w = e.line ? where(e.line) : null;
   errLine = w && w.file === 0 ? w.n : null;
   $('#errTitle').textContent = w ? `Error de compilación en ${w.text}` : 'Error de compilación';
@@ -551,7 +587,7 @@ function compileAndBoot() {
   machine = pcodeRes ? new BACI_VM.PMachine(pcodeRes, prog) : new BACI.Machine(prog);
   srcLines = src.split('\n');
   if (src !== lastSrc) { bps.clear(); lastSrc = src; }
-  chosen = null; hist = []; histTotal = 0; histDrawn = -1; pcodeDrawn = '';
+  chosen = null; hist = []; histTotal = 0; histDrawn = -1; pcodeDrawn = ''; pcBuiltFor = null;
   conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = '';
   resumeAfterInput = false;
   try { machine.boot(); }
@@ -713,37 +749,69 @@ function renderAll() {
   dirty = false;
   renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode(); renderHist(); renderPcode();
 }
-function renderPcode() {
-  const card = $('#pcodeCard'), em = $('#engineMsg');
-  em.hidden = !engineNote && !(machine && machine.isPcode);
-  em.className = 'engine' + (engineNote ? ' warn' : '');
-  em.textContent = engineNote || (machine && machine.isPcode ? `Compilado a PCODE como bacc: ${pcodeRes.code.length} instrucciones. Paso avanza una línea; Paso PCode, una instrucción.` : '');
-  if (!machine || !machine.isPcode || !machine.ptab) { card.hidden = true; return; }
-  card.hidden = false;
-  const m = machine;
-  const focusP = (chosen && chosen.state !== 'done' ? chosen : null) || m.last || m.main;
-  const focus = focusP && m.ptab[focusP.pid] ? m.ptab[focusP.pid].pc : 0;
-  const at = {};
-  for (const p of m.procs) if (p.state !== 'done') (at[p.pc] = at[p.pc] || []).push(p);
-  const key = focus + '|' + Object.entries(at).map(([k, v]) => k + ':' + v.map(p => p.pid).join(',')).join(';') + '|' + m.steps;
-  if (key === pcodeDrawn) return;
-  pcodeDrawn = key;
-  const from = Math.max(0, focus - 14), to = Math.min(m.code.length - 1, focus + 22);
+let codeMode = 'src';                // 'src' (C--) o 'pc' (PCode)
+let pcBuiltFor = null, pcRows = [], pcMk = [], pcHot = -1, pcMarks = {};
+function setCodeMode(m) {
+  codeMode = m;
+  $('#viewSrc').classList.toggle('on', m === 'src'); $('#viewSrc').setAttribute('aria-pressed', String(m === 'src'));
+  $('#viewPc').classList.toggle('on', m === 'pc'); $('#viewPc').setAttribute('aria-pressed', String(m === 'pc'));
+  store.set('view', m);
+  pcHot = -1; dirty = true; renderAll();
+}
+$('#viewSrc').addEventListener('click', () => setCodeMode('src'));
+$('#viewPc').addEventListener('click', () => setCodeMode('pc'));
+function buildPcode(m) {
+  // se arma una sola vez por programa; después solo se mueven las marcas
+  const box = $('#pcode');
   let html = '', lastLine = -1;
-  for (let pc = from; pc <= to; pc++) {
+  for (let pc = 0; pc < m.code.length; pc++) {
     const ln = m.pcLine[pc];
     if (ln !== lastLine) {
       lastLine = ln;
       const txt = ln && ln < LF ? (srcLines[ln - 1] || '').trim() : '';
-      html += `<div class="src">; ${esc(lineTxt(ln))}${txt ? ': ' + esc(txt) : ''}</div>`;
+      html += `<div class="src">; ${esc(lineTxt(ln) || 'inicio')}${txt ? ': ' + esc(txt) : ''}</div>`;
     }
-    const c = m.code[pc], here = at[pc];
-    html += `<div class="ins${pc === focus ? ' hot' : ''}"><span class="lc">${pc}</span><span class="mk">${here ? here.slice(0, 5).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="op">${esc(BACI_PCODE.OPNAME[c.f] || c.f)}</span><span class="xy">${c.x}</span><span class="xy">${c.y}</span><span class="d">${esc(m.describe(pc))}</span></div>`;
+    const c = m.code[pc];
+    html += `<div class="ins" data-pc="${pc}"><span class="lc">${pc}</span><span class="mk"></span><span class="op">${esc(BACI_PCODE.OPNAME[c.f] || c.f)}</span><span class="xy">${c.x}</span><span class="xy">${c.y}</span><span class="d">${esc(m.describe(pc))}</span></div>`;
   }
-  const box = $('#pcode');
   box.innerHTML = html;
-  const hot = box.querySelector('.hot');
-  if (hot) box.scrollTop = Math.max(0, hot.offsetTop - box.clientHeight / 2);
+  pcRows = []; pcMk = [];
+  box.querySelectorAll('.ins').forEach(el => { const pc = +el.dataset.pc; pcRows[pc] = el; pcMk[pc] = el.children[1]; });
+  pcBuiltFor = m; pcHot = -1; pcMarks = {};
+}
+function renderPcode() {
+  const em = $('#engineMsg');
+  const isPc = !!(machine && machine.isPcode && machine.ptab);
+  em.hidden = !engineNote && !isPc;
+  em.className = 'engine' + (engineNote ? ' warn' : '');
+  em.textContent = engineNote || (isPc ? `Compilado a PCODE como bacc: ${pcodeRes.code.length} instrucciones. Paso avanza una línea; Paso PCode, una instrucción.` : '');
+  $('#viewPc').disabled = !isPc;
+  $('#viewPc').title = isPc ? 'El PCODE que genera bacc, con dónde va cada proceso' : 'Activa "PCode (como jBACI)" y ejecuta para ver el PCODE';
+  const showPc = isPc && codeMode === 'pc';
+  $('#pcode').hidden = !showPc; $('#codeview').hidden = showPc;
+  $('#dlPco').hidden = $('#dlLst').hidden = !isPc;
+  if (!showPc) return;
+  const m = machine;
+  if (pcBuiltFor !== m) buildPcode(m);
+  const focusP = (chosen && chosen.state !== 'done' ? chosen : null) || m.last || m.main;
+  const focus = focusP && m.ptab[focusP.pid] ? m.ptab[focusP.pid].pc : 0;
+  const at = {};
+  for (const p of m.procs) if (p.state !== 'done') (at[p.pc] = at[p.pc] || []).push(p);
+  for (const pc of new Set([...Object.keys(pcMarks), ...Object.keys(at)])) {
+    const a = at[pc] ? at[pc].map(p => p.pid + ':' + p.color).join(',') : '';
+    if ((pcMarks[pc] || '') === a) continue;
+    if (pcMk[pc]) pcMk[pc].innerHTML = at[pc] ? at[pc].slice(0, 5).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : '';
+    if (a) pcMarks[pc] = a; else delete pcMarks[pc];
+  }
+  if (focus !== pcHot) {
+    if (pcRows[pcHot]) pcRows[pcHot].classList.remove('hot');
+    if (pcRows[focus]) {
+      pcRows[focus].classList.add('hot');
+      const box = $('#pcode'), el = pcRows[focus];
+      if (el.offsetTop < box.scrollTop + 30 || el.offsetTop > box.scrollTop + box.clientHeight - 40) box.scrollTop = Math.max(0, el.offsetTop - box.clientHeight / 2);
+    }
+    pcHot = focus;
+  }
 }
 function renderHist() {
   const box = $('#hist');
@@ -940,7 +1008,16 @@ function setTab(t) {
   store.set('tab', t);
   if (!edit) { dirty = true; renderAll(); }
 }
-$('#tabEdit').addEventListener('click', () => setTab('edit'));
+function setWide(on) {
+  $('.panes').classList.toggle('wide', on);
+  $('#wideBtn').setAttribute('aria-pressed', String(on));
+  $('#wideBtn').textContent = on ? 'Mostrar editor' : 'Ampliar ejecución';
+  store.set('wide', on ? '1' : '');
+  if (on) setTab('run');
+  dirty = true; renderAll();
+}
+$('#wideBtn').addEventListener('click', () => setWide(!$('.panes').classList.contains('wide')));
+$('#tabEdit').addEventListener('click', () => { if ($('.panes').classList.contains('wide')) setWide(false); setTab('edit'); });
 $('#tabRun').addEventListener('click', () => setTab('run'));
 
 /* ---------------- instalación (PWA, Android) ---------------- */
@@ -961,6 +1038,8 @@ try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) n
   const sp = store.get('speed'); if (sp && SPEEDS[sp]) $('#speedSel').value = sp;
   $('#swapPause').checked = store.get('swap') === '1';
   $('#usePcode').checked = store.get('pcode') !== '0';
+  if (store.get('view') === 'pc') setCodeMode('pc');
+  if (store.get('wide') === '1') setWide(true);
   // migración: el código propio de la versión anterior pasa a "Mis archivos"
   const oldCode = store.get('code');
   if (oldCode && !Object.keys(lib).length && store.get('ex') === '__mine') { lib[normName(store.get('file') || 'programa.cm')] = oldCode; saveLib(); }
