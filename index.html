@@ -49,10 +49,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; }
 .bar-in { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1400px; margin: 0 auto; }
 .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
-.lightbox { display: grid; gap: 3px; padding: 4px 5px; border-radius: 7px; background: #26323D; }
-.lightbox i { width: 7px; height: 7px; border-radius: 50%; display: block; }
-.lightbox i:nth-child(1) { background: #F0626B; } .lightbox i:nth-child(2) { background: #F2AE3F; } .lightbox i:nth-child(3) { background: #43C17E; }
-.brand h1 { font: 800 19px/1 var(--f-display); letter-spacing: -0.01em; margin: 0; }
+.brand h1 { font: 800 22px/1 var(--f-display); letter-spacing: -0.02em; margin: 0; color: #FFFFFF; }
+.brand h1 b { font-weight: 800; color: var(--amber); }
 .brand small { display: block; font: 500 11px/1.2 var(--f-mono); color: var(--bar-muted); letter-spacing: 0.04em; margin-top: 3px; }
 .tabs { display: flex; background: #1F2932; border-radius: 9px; padding: 3px; gap: 2px; }
 .tabs button { border: 0; background: transparent; color: var(--bar-muted); padding: 6px 14px; border-radius: 7px; font-weight: 600; font-size: 14px; cursor: pointer; }
@@ -285,8 +283,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 <header class="bar">
   <div class="bar-in">
     <div class="brand">
-      <span class="lightbox" aria-hidden="true"><i></i><i></i><i></i></span>
-      <div><h1>Mini BACI</h1><small>intérprete C-- · jBACI</small></div>
+      <h1 aria-label="Mini BACI">Mini<b>BACI</b></h1>
     </div>
     <button id="installBtn" type="button" hidden>Instalar app</button>
     <button id="wideBtn" type="button" aria-pressed="false" title="Oculta el editor para ver toda la ejecución a lo ancho">Ampliar ejecución</button>
