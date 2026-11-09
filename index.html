@@ -175,15 +175,40 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 /* botón para ampliar la ejecución (solo en pantallas anchas) */
 #wideBtn { display: none; border: 1px solid #3A4651; background: transparent; color: #E8EDF2; border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; cursor: pointer; margin-left: auto; }
 #wideBtn[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+/* el contenedor de semáforos/monitores no altera el diseño normal */
+.syncbox { display: contents; }
 @media (min-width: 960px) {
   #wideBtn { display: inline-block; }
-  .panes.wide { grid-template-columns: minmax(0, 1fr); }
+  /* Ejecución a pantalla completa: todo cabe sin bajar, cada cuadro con su propio scroll */
+  .panes.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100dvh - var(--barh, 58px)); padding-block: 10px; overflow: hidden; max-width: none; }
+  .panes.wide .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+  .panes.wide .controls > .row:first-child { flex: 1 1 auto; }
+  .panes.wide .controls .msgline { flex-basis: 100%; }
+  .panes.wide .controls .engine:not(.warn) { display: none; }
   .panes.wide .pane-edit { display: none; }
-  .panes.wide .grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
-  .panes.wide .grid > .card { grid-column: 2; }
-  .panes.wide .grid > #codeCard { grid-column: 1; grid-row: 1 / span 30; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 200px); }
-  .panes.wide #codeCard .codeview, .panes.wide #codeCard .pcode { max-height: calc(100vh - 290px); }
-  .panes.wide .console { height: min(30vh, 320px); }
+  .panes.wide .pane-run { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-height: 0; height: 100%; }
+  .panes.wide .controls { position: static; padding: 0; gap: 4px; }
+  .panes.wide .controls .hint { display: none; }
+  .panes.wide .controls .status, .panes.wide .controls .row { gap: 6px 10px; }
+  .panes.wide .grid {
+    min-height: 0; height: 100%; gap: 10px;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .7fr);
+    grid-template-areas: "code procs sync" "code procs cons" "code vars hist";
+  }
+  .panes.wide .grid.nosync { grid-template-areas: "code procs cons" "code procs cons" "code vars hist"; }
+  .panes.wide #codeCard { grid-area: code; }
+  .panes.wide #procCard { grid-area: procs; }
+  .panes.wide #varCard { grid-area: vars; }
+  .panes.wide #syncBox { grid-area: sync; display: grid; gap: 10px; align-content: start; overflow: auto; min-height: 0; }
+  .panes.wide #consoleCard { grid-area: cons; }
+  .panes.wide #histCard { grid-area: hist; }
+  .panes.wide .grid > .card, .panes.wide #syncBox > .card { grid-column: auto; min-height: 0; padding: 8px 12px; gap: 6px; }
+  .panes.wide .grid > .card { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  .panes.wide .codeview, .panes.wide .pcode, .panes.wide .console, .panes.wide .hist, .panes.wide .procs, .panes.wide .vars { max-height: none; height: auto; min-height: 0; overflow: auto; }
+  .panes.wide .procs, .panes.wide .vars { align-content: start; }
+  .panes.wide .codehead { grid-row: 1; }
+  .panes.wide #codeCard > .codeview, .panes.wide #codeCard > .pcode { grid-row: 2; }
 }
 .engine.warn { color: var(--amber); }
 .pcode { font: 12.5px/1.55 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; max-height: 52vh; overflow: auto; }
@@ -336,7 +361,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
     </div>
 
     <div class="grid">
-      <div class="card span2">
+      <div id="consoleCard" class="card span2">
         <div class="card-h"><span class="label">Consola</span>
           <label class="toggle"><input id="colorOut" type="checkbox" checked> Color por proceso</label></div>
         <pre id="console" class="console" aria-live="off"></pre>
@@ -345,6 +370,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
           <button class="btn" type="submit">Enviar</button>
         </form>
       </div>
+      <div id="syncBox" class="syncbox">
       <div id="gfxCard" class="card span2" hidden>
         <div class="card-h"><span class="label">Dibujo</span><span class="label">600 × 450</span></div>
         <div class="canvas-wrap"><canvas id="gfx" width="600" height="450"></canvas></div>
@@ -362,11 +388,12 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <div id="notes" class="notes"></div>
         <div id="lindaWait" class="queue"></div>
       </div>
-      <div class="card">
+      </div>
+      <div id="procCard" class="card">
         <div class="card-h"><span class="label">Procesos</span><span id="procCount" class="label"></span></div>
         <div id="procs" class="procs"><span class="empty">Presiona Ejecutar.</span></div>
       </div>
-      <div class="card">
+      <div id="varCard" class="card">
         <div class="card-h"><span class="label">Variables globales</span></div>
         <dl id="vars" class="vars"></dl>
       </div>
@@ -385,7 +412,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <div id="codeview" class="codeview"></div>
         <div id="pcode" class="pcode" hidden></div>
       </div>
-      <div class="card span2">
+      <div id="histCard" class="card span2">
         <div class="card-h"><span class="label">Historial (qué proceso ejecutó cada línea)</span><span id="histCount" class="label"></span></div>
         <ol id="hist" class="hist"><li class="empty">Aún no se ejecuta nada.</li></ol>
       </div>
@@ -731,7 +758,10 @@ $('#codeview').addEventListener('click', e => {
 $('#clearBp').addEventListener('click', () => { bps.clear(); dirty = true; renderAll(); });
 $('#swapPause').addEventListener('change', () => store.set('swap', $('#swapPause').checked ? '1' : ''));
 $('#resetBtn').addEventListener('click', () => { stop(); if (!compileAndBoot()) setTab('edit'); });
-$('#runFromEdit').addEventListener('click', () => { stop(); if (compileAndBoot()) { setTab('run'); play(); } });
+$('#runFromEdit').addEventListener('click', () => {
+  stop();
+  if (compileAndBoot()) { if (matchMedia('(min-width: 960px)').matches) setWide(true); setTab('run'); play(); }
+});
 $('#speedSel').addEventListener('change', () => store.set('speed', $('#speedSel').value));
 $('#colorOut').addEventListener('change', () => { conCount = 0; conBase = -1; dirty = true; renderAll(); });
 
@@ -779,7 +809,12 @@ function buildPcode(m) {
   box.querySelectorAll('.ins').forEach(el => { const pc = +el.dataset.pc; pcRows[pc] = el; pcMk[pc] = el.children[1]; });
   pcBuiltFor = m; pcHot = -1; pcMarks = {};
 }
+function layoutSync() {
+  const any = ['#semCard', '#monCard', '#lindaCard', '#gfxCard'].some(id => !$(id).hidden);
+  $('.grid').classList.toggle('nosync', !any);
+}
 function renderPcode() {
+  layoutSync();
   const em = $('#engineMsg');
   const isPc = !!(machine && machine.isPcode && machine.ptab);
   em.hidden = !engineNote && !isPc;
@@ -1008,7 +1043,10 @@ function setTab(t) {
   store.set('tab', t);
   if (!edit) { dirty = true; renderAll(); }
 }
+function setBarH() { document.documentElement.style.setProperty('--barh', $('.bar').offsetHeight + 'px'); }
+addEventListener('resize', setBarH);
 function setWide(on) {
+  setBarH();
   $('.panes').classList.toggle('wide', on);
   $('#wideBtn').setAttribute('aria-pressed', String(on));
   $('#wideBtn').textContent = on ? 'Mostrar editor' : 'Ampliar ejecución';
