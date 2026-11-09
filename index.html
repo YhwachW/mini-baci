@@ -156,6 +156,18 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 .hist .hs { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .hist .ht { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .hist .ht b { color: var(--muted); font-weight: 400; }
+.engine { font-size: 12.5px; color: var(--muted); }
+.engine.warn { color: var(--amber); }
+.pcode { font: 12.5px/1.55 var(--f-mono); background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; max-height: 46vh; overflow: auto; }
+.pcode .src { color: var(--muted); padding: 4px 10px 0; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.pcode .ins { display: grid; grid-template-columns: 3.6em 5.2em 11em 3em 4.5em minmax(0, 1fr); gap: 0 6px; padding: 0 10px; white-space: pre; align-items: center; }
+.pcode .ins.hot { background: color-mix(in srgb, var(--amber) 16%, transparent); }
+.pcode .ins .lc { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pcode .ins .mk { display: flex; gap: 2px; }
+.pcode .ins .mk i { width: 9px; height: 9px; border-radius: 2px; background: var(--pcol); }
+.pcode .ins .op { font-weight: 600; }
+.pcode .ins .xy { text-align: right; font-variant-numeric: tabular-nums; }
+.pcode .ins .d { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .swatch { width: 10px; height: 26px; border-radius: 3px; background: var(--pcol, var(--muted)); }
 .pname { font: 600 13.5px/1.3 var(--f-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pname small { color: var(--muted); font-weight: 400; margin-right: 4px; }
@@ -260,6 +272,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <li>Linda: <code>postnote</code>, <code>readnote</code>, <code>removenote</code>, <code>readnoteeq</code>, <code>removenoteeq</code> y <code>variable=</code>.</li>
         <li>Gráficos de jBACI: <code>create</code>, <code>changecolor</code>, <code>makevisible</code>, <code>moveto</code>, <code>moveby</code>.</li>
         <li>Como en jBACI, el orden entre procesos es aleatorio: cada ejecución puede salir distinta.</li>
+        <li>Con <b>PCode (como jBACI)</b> el programa se compila igual que con <code>bacc</code> (mismo PCODE, mismas tablas, mismo <code>.lst</code>) y se ejecuta con el intérprete de BACI. Si usas algo que bacc no acepta (por ejemplo <code>+=</code> o <code>?:</code>), se ejecuta con el intérprete directo y se avisa.</li>
       </ul>
     </details>
   </section>
@@ -268,7 +281,8 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
     <div class="controls">
       <div class="row">
         <button id="playBtn" class="btn primary" type="button">Ejecutar</button>
-        <button id="stepBtn" class="btn" type="button">Paso</button>
+        <button id="stepBtn" class="btn" type="button" title="Avanza una línea del programa (Step Source en jBACI)">Paso</button>
+        <button id="stepPcBtn" class="btn" type="button" title="Avanza una instrucción de PCODE (Step PCode en jBACI)">Paso PCode</button>
         <button id="resetBtn" class="btn" type="button">Reiniciar</button>
         <label class="label" for="speedSel" style="margin-left:auto">Velocidad</label>
         <select id="speedSel" class="sel">
@@ -279,6 +293,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         </select>
       </div>
       <div class="row">
+        <label class="toggle"><input id="usePcode" type="checkbox" checked> PCode (como jBACI)</label>
         <label class="toggle"><input id="swapPause" type="checkbox"> Pausar al cambiar de proceso</label>
         <button id="clearBp" class="btn" type="button" hidden>Quitar breakpoints</button>
         <span class="hint">Toca un número de línea para poner un breakpoint · toca un proceso para que Paso lo avance a él</span>
@@ -288,6 +303,7 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <span id="stSteps" class="steps"></span>
       </div>
       <div id="stMsg" class="msgline" hidden></div>
+      <div id="engineMsg" class="engine" hidden></div>
     </div>
 
     <div class="grid">
@@ -329,6 +345,11 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
         <div class="card-h"><span class="label">Dónde va cada proceso</span></div>
         <div id="codeview" class="codeview"></div>
       </div>
+      <div id="pcodeCard" class="card span2" hidden>
+        <div class="card-h"><span class="label">PCode (lo que compila bacc)</span>
+          <span class="row"><button id="dlPco" class="btn" type="button">Descargar .pco</button><button id="dlLst" class="btn" type="button">Descargar .lst</button></span></div>
+        <div id="pcode" class="pcode"></div>
+      </div>
       <div class="card span2">
         <div class="card-h"><span class="label">Historial (qué proceso ejecutó cada línea)</span><span id="histCount" class="label"></span></div>
         <ol id="hist" class="hist"><li class="empty">Aún no se ejecuta nada.</li></ol>
@@ -338,6 +359,9 @@ details.help code { font-family: var(--f-mono); font-size: 12px; color: var(--in
 </main>
 
 <script src="baci.js"></script>
+<script src="pcode-tablas.js"></script>
+<script src="pcode.js"></script>
+<script src="pcode-vm.js"></script>
 <script src="ejemplos.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -507,6 +531,7 @@ const ENDED = ['done', 'error', 'deadlock'];
 const bps = new Set();                 // breakpoints: números de línea del archivo principal
 let chosen = null;                     // proceso elegido para el botón Paso
 let hist = [], histTotal = 0, histDrawn = -1, lastSrc = null;
+let pcodeRes = null, engineNote = '', pcodeDrawn = '';
 const HMAX = 400;
 
 function compileAndBoot() {
@@ -515,10 +540,18 @@ function compileAndBoot() {
   catch (e) { machine = null; prog = null; showError(e); dirty = true; renderAll(); updateButtons(); return false; }
   lastFiles = prog.files;
   $('#errBox').hidden = true; errLine = null; updateGutter();
-  machine = new BACI.Machine(prog);
+  pcodeRes = null; engineNote = '';
+  if ($('#usePcode').checked && window.BACI_PCODE && window.BACI_VM) {
+    try {
+      const r = BACI_PCODE.compile(src, resolveInclude, curName);
+      if (r.ok) pcodeRes = r;
+      else { const e = r.errors[0]; engineNote = `bacc no acepta este programa (línea ${e.line}${e.file && e.file !== curName ? ' de ' + e.file : ''}: ${e.msg}). Se ejecuta con el intérprete directo, sin PCode.`; }
+    } catch (e) { engineNote = 'No se pudo compilar a PCode (' + e.message + '). Se ejecuta con el intérprete directo.'; }
+  }
+  machine = pcodeRes ? new BACI_VM.PMachine(pcodeRes, prog) : new BACI.Machine(prog);
   srcLines = src.split('\n');
   if (src !== lastSrc) { bps.clear(); lastSrc = src; }
-  chosen = null; hist = []; histTotal = 0; histDrawn = -1;
+  chosen = null; hist = []; histTotal = 0; histDrawn = -1; pcodeDrawn = '';
   conCount = 0; conBase = -1; gfxDrawn = -1; $('#console').textContent = '';
   resumeAfterInput = false;
   try { machine.boot(); }
@@ -563,12 +596,45 @@ function doStep(forced) {
   } else if (segSteps >= AUTOPAUSE) { running = false; machine.pausedLong = true; }
   dirty = true;
 }
+/* Un paso de "línea" (como Step Source de jBACI): con PCode ejecuta las instrucciones
+   que faltan de la línea actual del proceso; con el intérprete directo es un paso normal. */
+function doLineStep(forced) {
+  if (!machine || !machine.isPcode) { doStep(forced); return; }
+  doStep(forced);
+  let target = machine.last, n = 0;
+  if (!target || !machine.ptab) return;
+  const tp = machine.ptab[target.pid];
+  const line = machine.pcLine[machine.lastPc];
+  while (n++ < 5000 && !ENDED.includes(machine.status) && machine.status !== 'input' && (running || !forced || true)) {
+    if (tp.done || tp.suspend >= 0 || tp.active <= 0 || tp.linda) break;
+    if (machine.pcLine[tp.pc] !== line) break;
+    if (running && !runnableUi(target)) break;
+    doStep(target);
+    if (!running && machine.bpHit) break;
+    if (machine.last !== target) break;
+  }
+}
+function runnableUi(p) { return p && p.state === 'ready'; }
+// en ejecución continua lenta: avanza hasta que cambie la línea o el proceso
+function doLineStepRun() {
+  doStep();
+  const p0 = machine.last; if (!p0) return;
+  const line = machine.pcLine[machine.lastPc];
+  let n = 0;
+  while (running && n++ < 5000) {
+    const tp = machine.ptab[p0.pid];
+    if (tp.done || tp.suspend >= 0 || tp.active <= 0 || tp.linda || machine.pcLine[tp.pc] !== line) break;
+    if (machine.stepcount === 0 && machine.ptab[0].active <= 0) break;   // le toca cambiar de proceso
+    doStep();
+    if (machine.last !== p0) break;
+  }
+}
 function loop(t) {
   if (!running) { renderAll(); updateButtons(); return; }
   const sp = SPEEDS[$('#speedSel').value] || SPEEDS.normal;
   if (sp.ms) {
     acc = Math.min(acc + (t - lastT), sp.ms * 3);
-    while (running && acc >= sp.ms) { acc -= sp.ms; doStep(); }
+    while (running && acc >= sp.ms) { acc -= sp.ms; if (machine.isPcode) doLineStepRun(); else doStep(); }
   } else {
     const end = performance.now() + 12; let n = 0;
     while (running && n < sp.per && performance.now() < end) { doStep(); n++; }
@@ -594,8 +660,25 @@ $('#stepBtn').addEventListener('click', () => {
   if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
   if (machine.status === 'input') { focusInput(); return; }
   machine.bpHit = null; machine.swapTo = null;
+  doLineStep(chosen && chosen.state === 'ready' ? chosen : null); renderAll(); updateButtons();
+});
+$('#stepPcBtn').addEventListener('click', () => {
+  stop();
+  if (!machine || ENDED.includes(machine.status)) { if (!compileAndBoot()) { setTab('edit'); return; } }
+  if (machine.status === 'input') { focusInput(); return; }
+  machine.bpHit = null; machine.swapTo = null;
   doStep(chosen && chosen.state === 'ready' ? chosen : null); renderAll(); updateButtons();
 });
+$('#usePcode').addEventListener('change', () => { store.set('pcode', $('#usePcode').checked ? '1' : '0'); stop(); if (machine) compileAndBoot(); });
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const baseName = () => curName.replace(/\.cm$/i, '');
+$('#dlPco').addEventListener('click', () => { if (pcodeRes) download(baseName() + '.pco', BACI_PCODE.writePco(pcodeRes, curName, new Date().toString().slice(0, 24))); });
+$('#dlLst').addEventListener('click', () => { if (pcodeRes) download(baseName() + '.lst', pcodeRes.lst); });
 $('#procs').addEventListener('click', e => {
   const row = e.target.closest('.proc'); if (!row || !machine) return;
   const p = machine.procs[+row.dataset.pid];
@@ -628,7 +711,39 @@ function updateButtons() {
 function renderAll() {
   if (!dirty) return;
   dirty = false;
-  renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode(); renderHist();
+  renderStatus(); renderSems(); renderMons(); renderLinda(); renderGfx(); renderProcs(); renderVars(); renderConsole(); renderCode(); renderHist(); renderPcode();
+}
+function renderPcode() {
+  const card = $('#pcodeCard'), em = $('#engineMsg');
+  em.hidden = !engineNote && !(machine && machine.isPcode);
+  em.className = 'engine' + (engineNote ? ' warn' : '');
+  em.textContent = engineNote || (machine && machine.isPcode ? `Compilado a PCODE como bacc: ${pcodeRes.code.length} instrucciones. Paso avanza una línea; Paso PCode, una instrucción.` : '');
+  if (!machine || !machine.isPcode || !machine.ptab) { card.hidden = true; return; }
+  card.hidden = false;
+  const m = machine;
+  const focusP = (chosen && chosen.state !== 'done' ? chosen : null) || m.last || m.main;
+  const focus = focusP && m.ptab[focusP.pid] ? m.ptab[focusP.pid].pc : 0;
+  const at = {};
+  for (const p of m.procs) if (p.state !== 'done') (at[p.pc] = at[p.pc] || []).push(p);
+  const key = focus + '|' + Object.entries(at).map(([k, v]) => k + ':' + v.map(p => p.pid).join(',')).join(';') + '|' + m.steps;
+  if (key === pcodeDrawn) return;
+  pcodeDrawn = key;
+  const from = Math.max(0, focus - 14), to = Math.min(m.code.length - 1, focus + 22);
+  let html = '', lastLine = -1;
+  for (let pc = from; pc <= to; pc++) {
+    const ln = m.pcLine[pc];
+    if (ln !== lastLine) {
+      lastLine = ln;
+      const txt = ln && ln < LF ? (srcLines[ln - 1] || '').trim() : '';
+      html += `<div class="src">; ${esc(lineTxt(ln))}${txt ? ': ' + esc(txt) : ''}</div>`;
+    }
+    const c = m.code[pc], here = at[pc];
+    html += `<div class="ins${pc === focus ? ' hot' : ''}"><span class="lc">${pc}</span><span class="mk">${here ? here.slice(0, 5).map(p => `<i data-c="${p.color}" title="${esc(p.name)}"></i>`).join('') : ''}</span><span class="op">${esc(BACI_PCODE.OPNAME[c.f] || c.f)}</span><span class="xy">${c.x}</span><span class="xy">${c.y}</span><span class="d">${esc(m.describe(pc))}</span></div>`;
+  }
+  const box = $('#pcode');
+  box.innerHTML = html;
+  const hot = box.querySelector('.hot');
+  if (hot) box.scrollTop = Math.max(0, hot.offsetTop - box.clientHeight / 2);
 }
 function renderHist() {
   const box = $('#hist');
@@ -845,6 +960,7 @@ try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) n
   if (framed) $('#saveBtn').hidden = true;   // en una vista previa el navegador no deja descargar
   const sp = store.get('speed'); if (sp && SPEEDS[sp]) $('#speedSel').value = sp;
   $('#swapPause').checked = store.get('swap') === '1';
+  $('#usePcode').checked = store.get('pcode') !== '0';
   // migración: el código propio de la versión anterior pasa a "Mis archivos"
   const oldCode = store.get('code');
   if (oldCode && !Object.keys(lib).length && store.get('ex') === '__mine') { lib[normName(store.get('file') || 'programa.cm')] = oldCode; saveLib(); }

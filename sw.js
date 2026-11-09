@@ -1,6 +1,6 @@
 // Mini BACI: guarda la app para que funcione sin internet.
-const CACHE = 'minibaci-v6';
-const ASSETS = ['./', './index.html', './baci.js', './ejemplos.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
+const CACHE = 'minibaci-v7';
+const ASSETS = ['./', './index.html', './baci.js', './ejemplos.js', './pcode-tablas.js', './pcode.js', './pcode-vm.js', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
